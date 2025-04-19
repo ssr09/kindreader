@@ -2,12 +2,25 @@
 
 // Extracts main content from the page (simple heuristic)
 function getMainContent() {
-  let article = document.querySelector('article');
-  if (article) return article.innerHTML;
-  // Fallback: get largest text container
-  let all = Array.from(document.body.querySelectorAll('div, section, main'));
-  let biggest = all.reduce((a, b) => (b.innerText.length > a.innerText.length ? b : a), document.body);
-  return biggest.innerHTML;
+  // Improved extraction: prefer main/article/section elements
+  const selectors = ['article', 'main', '[role=main]'];
+  for (const sel of selectors) {
+    const el = document.querySelector(sel);
+    if (el && el.innerText.trim().length > 100) return el.innerHTML;
+  }
+  // Next, look for sizeable <section>
+  const secs = Array.from(document.querySelectorAll('section'));
+  for (const sec of secs) {
+    if (sec.innerText.trim().length > 200) return sec.innerHTML;
+  }
+  // Fallback: largest text container excluding nav/headers
+  let all = Array.from(document.body.querySelectorAll('div, section, main, article'));
+  all = all.filter(el => el.innerText && !/(nav|header|footer|aside|menu)/i.test(el.tagName + ' ' + el.className));
+  if (all.length) {
+    let biggest = all.reduce((a, b) => (b.innerText.length > a.innerText.length ? b : a), all[0]);
+    return biggest.innerHTML;
+  }
+  return document.body.innerText || '';
 }
 
 // Side pane toggle logic
@@ -68,12 +81,23 @@ function createSidepane() {
   pane.className = 'theme-day';
   // request content cleaning
   const raw = getMainContent();
-  chrome.runtime.sendMessage({ type: 'extractContent', content: raw }, res => {
-    const target = document.getElementById('kind-reader-content');
-    if (res.error) target.innerText = res.error;
-    else target.innerHTML = res.content;
-    target.focus();
-  });
+  console.log('KindReader raw length:', raw.length);
+  const target = document.getElementById('kind-reader-content');
+  if (!raw) {
+    target.innerText = 'No main content detected on this page.';
+  } else {
+    chrome.runtime.sendMessage({ type: 'extractContent', content: raw }, res => {
+      console.log('KindReader response:', res);
+      if (res.error) {
+        target.innerText = 'Error: ' + res.error;
+      } else if (!res.content || !res.content.trim()) {
+        target.innerText = 'No content extracted. Raw LLM output: ' + JSON.stringify(res);
+      } else {
+        target.innerHTML = res.content;
+      }
+      target.focus();
+    });
+  }
 }
 
 // Spinner CSS (injected if not present)

@@ -1,4 +1,8 @@
 /* sidepane.css */
+#kind-reader-sidepane, #kind-reader-sidepane * {
+  all: unset;
+  box-sizing: border-box;
+}
 #kind-reader-sidepane {
   position: fixed;
   top: 0;
@@ -139,4 +143,3 @@
   background: var(--kr-bg);
   color: var(--kr-fg);
 }
-

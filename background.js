@@ -2,6 +2,15 @@
 
 let lastCleanedContent = '';
 
+// strip markdown code fences from LLM output
+function stripCodeBlock(text) {
+  // remove opening ``` with optional lang spec and trailing ```
+  return text
+    .replace(/^```[^\n]*\n?/, '')
+    .replace(/```[^\n]*$/m, '')
+    .trim();
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'extractContent') {
     // retrieve API key and call OpenAI for cleaning
@@ -17,29 +26,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+          model: 'gpt-4.1-mini',
           messages: [
             { 
               role: 'system', 
               content: `You are a careful and thoughtful content extractor. Given the full raw HTML/text and visible elements of a webpage, extract only the main user-facing readable content.
 
 Requirements:
+• Include main headings, subheadings, paragraphs, important quotes, and necessary images or diagrams essential to the reading experience.
+• Exclude irrelevant sections like ads, toolbars, footers, comments, navigation, pop‑ups, and unrelated calls to action.
+• Do not edit or modify original text — preserve spelling, grammar, tone exactly.
+• Present a clean, readable HTML article with minimal distractions.
+• Keep structure simple: use headers, paragraphs, and insert images with alt text or captions.
+• Do not summarize, shorten, embellish, or rewrite.
+• Maintain order and logical flow of original content.
 
-Include main headings, subheadings, paragraphs, important quotes, and any necessary images or diagrams that are essential to the reading experience.
-
-Exclude all irrelevant sections like advertisements, toolbars, footers, comment sections, navigation menus, pop-ups, and unrelated call-to-actions.
-
-Do not edit or modify the original text — preserve spelling, grammar, tone exactly as shown.
-
-Present the extracted content as a clean, readable article meant for immersive reading, with minimal distractions.
-
-Keep the structure simple: use headers for sections, paragraphs for content, and insert images in relevant places as needed (with alt text or caption if available).
-
-Do not summarize, shorten, embellish, or rewrite any content.
-
-Maintain the order and logical flow of the original readable material.
-
-Respond with clean, structured HTML ready for display in a reading view pane.` 
+IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. Return only raw HTML ready for display in a reading view pane.` 
             },
             { role: 'user', content: msg.content }
           ]
@@ -47,7 +49,15 @@ Respond with clean, structured HTML ready for display in a reading view pane.`
       })
       .then(res => res.json())
       .then(data => {
-        const cleaned = data.choices?.[0]?.message?.content || '';
+        // Handle OpenAI API errors
+        if (data.error) {
+          console.error('KindReader API error:', data.error);
+          lastCleanedContent = '';
+          sendResponse({ error: data.error.message || JSON.stringify(data.error) });
+          return;
+        }
+        const raw = data.choices?.[0]?.message?.content || '';
+        const cleaned = stripCodeBlock(raw);
         lastCleanedContent = cleaned;
         sendResponse({ content: cleaned });
       })
