@@ -123,6 +123,38 @@
 #kind-reader-content a:hover {
   color: #e65a50;
 }
+
+/* Typography override for consistent reading style */
+#kind-reader-content {
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif !important;
+  font-size: 1.15rem !important;
+  line-height: 1.6 !important;
+  letter-spacing: 0.02em !important;
+}
+#kind-reader-content h1,
+#kind-reader-content h2,
+#kind-reader-content h3,
+#kind-reader-content h4,
+#kind-reader-content h5,
+#kind-reader-content h6 {
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif !important;
+  font-weight: 600 !important;
+  margin: 1.2em 0 0.6em !important;
+}
+#kind-reader-content p {
+  margin: 0.9em 0 !important;
+}
+#kind-reader-content ul,
+#kind-reader-content ol {
+  margin: 0.8em 0 !important;
+  padding-left: 1.5em !important;
+}
+#kind-reader-content blockquote {
+  margin: 1em 0 !important;
+  padding: 0.6em 1em !important;
+  border-left: 4px solid #ccc !important;
+}
+
 /* Day Theme */
 .theme-day {
   --kr-bg: #fff;

@@ -98,6 +98,7 @@ function createSidepane() {
     const port = chrome.runtime.connect({ name: 'stream' });
     // buffer incomplete HTML between chunks
     let leftover = '';
+    let firstChunk = true;
     port.onMessage.addListener(msg => {
       if (msg.error) {
         target.innerText = 'Error: ' + msg.error;
@@ -124,6 +125,12 @@ function createSidepane() {
           leftover = html;
         }
         if (safe) {
+          // remove spinner on first fragment
+          if (firstChunk) {
+            const spinner = target.querySelector('.kr-spinner');
+            if (spinner) spinner.remove();
+            firstChunk = false;
+          }
           const frag = document.createRange().createContextualFragment(safe);
           // remove whitespace-only text nodes
           const walker = document.createTreeWalker(frag, NodeFilter.SHOW_TEXT, {
