@@ -111,6 +111,21 @@ function createSidepane() {
   // Set initial theme
   pane.className = 'theme-day';
   let firstChunk = true;
+  // Replace kr-blur text with asterisks on copy
+  document.getElementById('kind-reader-content').addEventListener('copy', function(e) {
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+    const div = document.createElement('div');
+    for (let i = 0; i < selection.rangeCount; i++) {
+      div.appendChild(selection.getRangeAt(i).cloneContents());
+    }
+    div.querySelectorAll('.kr-blur').forEach(span => {
+      const stars = '*'.repeat(span.textContent.length);
+      span.textContent = stars;
+    });
+    e.clipboardData.setData('text/plain', div.textContent);
+    e.preventDefault();
+  });
   // request streaming content cleaning
   const raw = getMainContent();
   console.log('KindReader raw length:', raw.length);

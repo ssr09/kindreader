@@ -139,6 +139,10 @@
   filter: none !important;
   cursor: auto !important;
   transition: filter 0.2s ease !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
 }
 #kind-reader-content.kr-child-safe .kr-blur {
   filter: blur(4px) !important;
