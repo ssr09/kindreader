@@ -67,6 +67,37 @@ IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. 
   if (msg.type === 'getCleanedContent') {
     sendResponse({ content: lastCleanedContent });
   }
+  if (msg.type === 'checkProfanity') {
+    const snippet = msg.html || '';
+    // call OpenAI to wrap profane words in <span class="kr-blur">...<\/span>
+    chrome.storage.sync.get('apiKey', ({ apiKey }) => {
+      if (!apiKey) {
+        sendResponse({ error: 'API key not set' });
+        return;
+      }
+      fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4.1-mini',
+          messages: [
+            { role: 'system', content: 'Wrap any profane or offensive words in the following HTML snippet with <span class="kr-blur"> and </span>, preserving all other content and tags exactly.' },
+            { role: 'user', content: snippet }
+          ]
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          sendResponse({ error: data.error.message || JSON.stringify(data.error) });
+        } else {
+          const html = data.choices?.[0]?.message?.content || snippet;
+          sendResponse({ html });
+        }
+      })
+      .catch(err => sendResponse({ error: err.toString() }));
+    });
+  }
   return true; // keep channel open for sendResponse
 });
 

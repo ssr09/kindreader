@@ -56,6 +56,10 @@ function createSidepane() {
           <option value="night">Night</option>
           <option value="sepia">Sepia</option>
         </select>
+        <div class="kr-setting-item">
+          <label for="child-safe-toggle">Child Safe Mode</label>
+          <input type="checkbox" id="child-safe-toggle" aria-label="Child Safe Mode">
+        </div>
       </div>
     </div>
     <div id="kind-reader-content" class="theme-day" aria-live="polite" tabindex="0">
@@ -92,6 +96,11 @@ function createSidepane() {
     e.preventDefault();
     settingsMenu.classList.toggle('kr-hidden');
   });
+  const childSafeCheckbox = document.getElementById('child-safe-toggle');
+  childSafeCheckbox.addEventListener('change', e => {
+    document.getElementById('kind-reader-content')
+      .classList.toggle('kr-child-safe', e.target.checked);
+  });
   // Theme selector
   const themeSelect = document.getElementById('theme-select');
   themeSelect.addEventListener('change', e => {
@@ -101,6 +110,7 @@ function createSidepane() {
   });
   // Set initial theme
   pane.className = 'theme-day';
+  let firstChunk = true;
   // request streaming content cleaning
   const raw = getMainContent();
   console.log('KindReader raw length:', raw.length);
@@ -111,7 +121,6 @@ function createSidepane() {
     const port = chrome.runtime.connect({ name: 'stream' });
     // buffer incomplete HTML between chunks
     let leftover = '';
-    let firstChunk = true;
     port.onMessage.addListener(msg => {
       if (msg.error) {
         target.innerText = 'Error: ' + msg.error;
@@ -160,7 +169,12 @@ function createSidepane() {
               img.src = new URL(src, document.baseURI).href;
             }
           });
-          target.appendChild(frag);
+          // always wrap profanity via LLM
+          chrome.runtime.sendMessage({ type: 'checkProfanity', html: safe }, resp => {
+            const profFrag = document.createRange()
+              .createContextualFragment(resp.html);
+            target.appendChild(profFrag);
+          });
         }
       } else if (msg.done) {
         // flush leftover

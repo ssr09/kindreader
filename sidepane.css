@@ -134,6 +134,16 @@
   color: #e65a50;
 }
 
+/* Profanity blur styling */
+#kind-reader-content .kr-blur {
+  filter: none !important;
+  cursor: auto !important;
+  transition: filter 0.2s ease !important;
+}
+#kind-reader-content.kr-child-safe .kr-blur {
+  filter: blur(4px) !important;
+}
+
 /* Typography override for consistent reading style */
 #kind-reader-content {
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif !important;
