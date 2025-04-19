@@ -1,0 +1,27 @@
+/* styles.css */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+}
+#controls {
+  padding: 8px;
+  border-bottom: 1px solid #ddd;
+}
+#content {
+  padding: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.theme-day {
+  background: #fff;
+  color: #000;
+}
+.theme-night {
+  background: #121212;
+  color: #fafafa;
+}
+.theme-sepia {
+  background: #f4ecd8;
+  color: #5b4636;
+}

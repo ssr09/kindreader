@@ -1,0 +1,142 @@
+/* sidepane.css */
+#kind-reader-sidepane {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 420px;
+  max-width: 100vw;
+  height: 100vh;
+  background: var(--kr-bg, #fff);
+  color: var(--kr-fg, #181a1b);
+  box-shadow: -8px 0 32px 0 rgba(0,0,0,0.10), -1.5px 0 0 0 rgba(0,0,0,0.07);
+  z-index: 2147483647;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  border-radius: 18px 0 0 18px;
+  overflow: hidden;
+  animation: kr-slidein 0.28s cubic-bezier(.5,1.8,.6,1) 1;
+  transition: background 0.3s, color 0.3s;
+}
+@keyframes kr-slidein {
+  from { right: -440px; opacity: 0; }
+  to { right: 0; opacity: 1; }
+}
+#kind-reader-controls {
+  display: flex;
+  align-items: center;
+  padding: 18px 18px 12px 18px;
+  border-bottom: 1px solid #eee;
+  background: rgba(255,255,255,0.98);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  gap: 10px;
+}
+#kind-reader-controls label {
+  font-weight: 500;
+  font-size: 1.03em;
+  margin-right: 8px;
+  letter-spacing: 0.01em;
+  color: #888;
+}
+#kind-reader-controls select {
+  margin-right: 8px;
+  padding: 6px 18px 6px 10px;
+  border-radius: 7px;
+  border: 1px solid #e0e0e0;
+  background: #f6f6f6;
+  color: #222;
+  font-size: 1em;
+  transition: border 0.2s;
+  outline: none;
+  box-shadow: 0 1.5px 0 rgba(0,0,0,0.04);
+}
+#kind-reader-controls select:focus {
+  border: 1.5px solid #a5a5a5;
+  background: #fff;
+}
+#kind-reader-controls button {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  color: #aaa;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.18s, color 0.18s;
+}
+#kind-reader-controls button:hover, #kind-reader-controls button:focus {
+  background: #f1f1f1;
+  color: #e65a50;
+  outline: none;
+}
+#kind-reader-content {
+  padding: 28px 32px 28px 28px;
+  overflow-y: auto;
+  flex: 1;
+  font-size: 1.11em;
+  line-height: 1.7;
+  letter-spacing: 0.01em;
+  background: transparent;
+  color: inherit;
+  transition: background 0.3s, color 0.3s;
+  scrollbar-width: thin;
+  scrollbar-color: #e5e5e5 #f8f8f8;
+}
+#kind-reader-content img {
+  max-width: 98%;
+  border-radius: 10px;
+  margin: 18px 0;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+}
+#kind-reader-content h1, #kind-reader-content h2, #kind-reader-content h3, #kind-reader-content h4 {
+  font-weight: 600;
+  margin: 1.1em 0 0.7em;
+  letter-spacing: 0.01em;
+  color: #2a2c2e;
+}
+#kind-reader-content p {
+  margin: 0.7em 0;
+}
+#kind-reader-content a {
+  color: #4e8cff;
+  text-decoration: underline;
+  transition: color 0.18s;
+}
+#kind-reader-content a:hover {
+  color: #e65a50;
+}
+/* Day Theme */
+.theme-day {
+  --kr-bg: #fff;
+  --kr-fg: #181a1b;
+}
+/* Night Theme */
+.theme-night {
+  --kr-bg: #191c1f;
+  --kr-fg: #f1f1f1;
+}
+/* Sepia Theme */
+.theme-sepia {
+  --kr-bg: #f8f5ee;
+  --kr-fg: #4b3e2e;
+}
+#kind-reader-sidepane.theme-day {
+  background: var(--kr-bg);
+  color: var(--kr-fg);
+}
+#kind-reader-sidepane.theme-night {
+  background: var(--kr-bg);
+  color: var(--kr-fg);
+}
+#kind-reader-sidepane.theme-sepia {
+  background: var(--kr-bg);
+  color: var(--kr-fg);
+}
+

@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Kind Reader",
+  "version": "0.1.0",
+  "description": "Reader mode extension using OpenAI",
+  "permissions": ["storage", "scripting"],
+  "host_permissions": ["<all_urls>", "https://api.openai.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {},
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "css": ["styles.css", "sidepane.css"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content.js", "sidepane.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
