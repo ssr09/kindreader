@@ -2,25 +2,34 @@
 
 // Extracts main content from the page (simple heuristic)
 function getMainContent() {
-  // Improved extraction: prefer main/article/section elements
-  const selectors = ['article', 'main', '[role=main]'];
-  for (const sel of selectors) {
-    const el = document.querySelector(sel);
-    if (el && el.innerText.trim().length > 100) return el.innerHTML;
+  try {
+    // Improved extraction: prefer main/article/section elements
+    const selectors = ['article', 'main', '[role=main]'];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el && typeof el.innerText === 'string' && el.innerText.trim().length > 100) {
+        return el.innerHTML || '';
+      }
+    }
+    // Next, look for sizeable <section>
+    const secs = Array.from(document.querySelectorAll('section'));
+    for (const sec of secs) {
+      if (typeof sec.innerText === 'string' && sec.innerText.trim().length > 200) {
+        return sec.innerHTML || '';
+      }
+    }
+    // Fallback: largest text container excluding nav/headers
+    let all = Array.from(document.body.querySelectorAll('div, section, main, article'));
+    all = all.filter(el => el.innerText && !/(nav|header|footer|aside|menu)/i.test(el.tagName + ' ' + el.className));
+    if (all.length) {
+      let biggest = all.reduce((a, b) => (b.innerText.length > a.innerText.length ? b : a), all[0]);
+      return biggest.innerHTML || '';
+    }
+    return document.body.innerText || '';
+  } catch(err) {
+    console.error('KindReader getMainContent error:', err);
+    return '';
   }
-  // Next, look for sizeable <section>
-  const secs = Array.from(document.querySelectorAll('section'));
-  for (const sec of secs) {
-    if (sec.innerText.trim().length > 200) return sec.innerHTML;
-  }
-  // Fallback: largest text container excluding nav/headers
-  let all = Array.from(document.body.querySelectorAll('div, section, main, article'));
-  all = all.filter(el => el.innerText && !/(nav|header|footer|aside|menu)/i.test(el.tagName + ' ' + el.className));
-  if (all.length) {
-    let biggest = all.reduce((a, b) => (b.innerText.length > a.innerText.length ? b : a), all[0]);
-    return biggest.innerHTML;
-  }
-  return document.body.innerText || '';
 }
 
 // Side pane toggle logic
