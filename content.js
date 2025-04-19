@@ -44,13 +44,19 @@ function createSidepane() {
   // Modern, minimal, delightful UI
   pane.innerHTML = `
     <div id="kind-reader-controls">
-      <label for="theme-select">Theme:</label>
-      <select id="theme-select" aria-label="Theme selector">
-        <option value="day">Day</option>
-        <option value="night">Night</option>
-        <option value="sepia">Sepia</option>
-      </select>
-      <button id="kind-reader-close" aria-label="Close Reader Pane" title="Close KindReader">✕</button>
+      <span id="kind-reader-title">Kind Reader</span>
+      <div class="kr-controls-right">
+        <button id="kind-reader-settings" aria-label="Settings" title="Settings">⚙️</button>
+        <button id="kind-reader-close" aria-label="Close Reader Pane" title="Close KindReader">✕</button>
+      </div>
+      <div id="kind-reader-settings-menu" class="kr-hidden">
+        <label for="theme-select">Theme:</label>
+        <select id="theme-select" aria-label="Theme selector">
+          <option value="day">Day</option>
+          <option value="night">Night</option>
+          <option value="sepia">Sepia</option>
+        </select>
+      </div>
     </div>
     <div id="kind-reader-content" class="theme-day" aria-live="polite" tabindex="0">
       <div class="kr-spinner" aria-label="Loading"></div>
@@ -78,6 +84,13 @@ function createSidepane() {
   document.getElementById('kind-reader-close').addEventListener('click', toggleSidepane);
   document.getElementById('kind-reader-close').addEventListener('keydown', e => {
     if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleSidepane(); }
+  });
+  // settings menu toggle
+  const settingsBtn = document.getElementById('kind-reader-settings');
+  const settingsMenu = document.getElementById('kind-reader-settings-menu');
+  settingsBtn.addEventListener('click', e => {
+    e.preventDefault();
+    settingsMenu.classList.toggle('kr-hidden');
   });
   // Theme selector
   const themeSelect = document.getElementById('theme-select');

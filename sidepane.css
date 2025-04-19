@@ -32,13 +32,19 @@
 #kind-reader-controls {
   display: flex;
   align-items: center;
-  padding: 18px 18px 12px 18px;
+  justify-content: space-between;
+  padding: 12px 16px;
   border-bottom: 1px solid #eee;
   background: rgba(255,255,255,0.98);
   position: sticky;
   top: 0;
   z-index: 1;
   gap: 10px;
+}
+#kind-reader-title {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #2a2c2e;
 }
 #kind-reader-controls label {
   font-weight: 500;
@@ -63,25 +69,29 @@
   border: 1.5px solid #a5a5a5;
   background: #fff;
 }
-#kind-reader-controls button {
-  margin-left: auto;
+.kr-controls-right button {
   background: none;
   border: none;
-  font-size: 1.5em;
-  color: #aaa;
+  font-size: 1.3em;
+  margin-left: 8px;
   cursor: pointer;
-  border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.18s, color 0.18s;
 }
-#kind-reader-controls button:hover, #kind-reader-controls button:focus {
-  background: #f1f1f1;
+.kr-controls-right button:hover {
   color: #e65a50;
-  outline: none;
+}
+#kind-reader-settings-menu {
+  position: absolute;
+  top: 48px;
+  right: 60px;
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  z-index: 2;
+}
+.kr-hidden {
+  display: none !important;
 }
 #kind-reader-content {
   padding: 28px 32px 28px 28px;
