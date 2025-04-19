@@ -105,15 +105,19 @@ if (!document.getElementById('kr-spinner-style')) {
   const style = document.createElement('style');
   style.id = 'kr-spinner-style';
   style.textContent = `
-    .kr-spinner {
-      margin: 60px auto;
-      width: 38px; height: 38px;
-      border: 4px solid #e5e5e5;
-      border-top: 4px solid #e65a50;
-      border-radius: 50%;
-      animation: kr-spin 1s linear infinite;
+    #kind-reader-sidepane .kr-spinner {
+      display: block !important;
+      width: 38px !important;
+      height: 38px !important;
+      margin: 60px auto !important;
+      border: 4px solid #e5e5e5 !important;
+      border-top: 4px solid #e65a50 !important;
+      border-radius: 50% !important;
+      animation: kr-spin 1s linear infinite !important;
     }
-    @keyframes kr-spin { 100% { transform: rotate(360deg); } }
+    @keyframes kr-spin {
+      100% { transform: rotate(360deg); }
+    }
   `;
   document.head.appendChild(style);
 }

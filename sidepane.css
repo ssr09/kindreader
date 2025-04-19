@@ -1,6 +1,9 @@
 /* sidepane.css */
-#kind-reader-sidepane, #kind-reader-sidepane * {
+#kind-reader-sidepane {
   all: unset;
+  box-sizing: border-box;
+}
+#kind-reader-sidepane * {
   box-sizing: border-box;
 }
 #kind-reader-sidepane {
@@ -94,9 +97,13 @@
   scrollbar-color: #e5e5e5 #f8f8f8;
 }
 #kind-reader-content img {
+  display: block;
+  width: auto;
   max-width: 98%;
+  height: auto;
+  object-fit: contain;
   border-radius: 10px;
-  margin: 18px 0;
+  margin: 18px auto;
   box-shadow: 0 2px 12px rgba(0,0,0,0.04);
 }
 #kind-reader-content h1, #kind-reader-content h2, #kind-reader-content h3, #kind-reader-content h4 {
