@@ -70,6 +70,99 @@ IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. 
   return true; // keep channel open for sendResponse
 });
 
+// Add streaming handler for HTML chunks
+chrome.runtime.onConnect.addListener(port => {
+  if (port.name !== 'stream') return;
+  port.onMessage.addListener(msg => {
+    if (msg.type !== 'extractStream') return;
+    chrome.storage.sync.get('apiKey', ({ apiKey }) => {
+      if (!apiKey) {
+        try { port.postMessage({ error: 'API key not set' }); } catch {};
+        port.disconnect();
+        return;
+      }
+      fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4.1-mini',
+          stream: true,
+          messages: [
+            {
+              role: 'system',
+              content: `You are a careful and thoughtful content extractor. Given the full raw HTML/text and visible elements of a webpage, extract only the main user-facing readable content.
+
+Requirements:
+• Include main headings, subheadings, paragraphs, important quotes, and necessary images or diagrams essential to the reading experience.
+• Exclude irrelevant sections like ads, toolbars, footers, comments, navigation, pop‑ups, and unrelated calls to action.
+• Do not edit or modify original text — preserve spelling, grammar, tone exactly.
+• Present a clean, readable HTML article with minimal distractions.
+• Keep structure simple: use headers, paragraphs, and insert images with alt text or captions.
+• Do not summarize, shorten, embellish, or rewrite.
+• Maintain order and logical flow of original content.
+
+IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. Return only raw HTML ready for display in a reading view pane.`
+            },
+            { role: 'user', content: msg.content }
+          ]
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          response.text().then(err => {
+            try { port.postMessage({ error: err }); } catch {};
+            port.disconnect();
+          });
+          return;
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let doneFlag = false;
+        (async () => {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done || doneFlag) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split('\n\n');
+            buffer = parts.pop();
+            for (const part of parts) {
+              if (!part.startsWith('data:')) continue;
+              const dataStr = part.replace(/^data:\s*/, '');
+              if (dataStr === '[DONE]') {
+                try { port.postMessage({ done: true }); } catch {};
+                doneFlag = true;
+                break;
+              }
+              let json;
+              try { json = JSON.parse(dataStr); } catch { continue; }
+              const delta = json.choices?.[0]?.delta?.content || '';
+              if (delta !== '') {
+                // strip markdown fences but preserve internal whitespace
+                const cleaned = delta
+                  .replace(/^```[^\n]*\n?/, '')
+                  .replace(/```[^\n]*$/m, '');
+                try { port.postMessage({ chunk: cleaned }); } catch {};
+              }
+            }
+          }
+          if (!doneFlag) {
+            try { port.postMessage({ done: true }); } catch {};
+          }
+          port.disconnect();
+        })();
+      })
+      .catch(err => {
+        try { port.postMessage({ error: err.toString() }); } catch {};
+        port.disconnect();
+      });
+    });
+  });
+});
+
 // Toggle side pane on extension icon click
 chrome.action.onClicked.addListener(tab => {
   const url = tab.url || '';

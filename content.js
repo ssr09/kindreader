@@ -88,24 +88,73 @@ function createSidepane() {
   });
   // Set initial theme
   pane.className = 'theme-day';
-  // request content cleaning
+  // request streaming content cleaning
   const raw = getMainContent();
   console.log('KindReader raw length:', raw.length);
   const target = document.getElementById('kind-reader-content');
   if (!raw) {
     target.innerText = 'No main content detected on this page.';
   } else {
-    chrome.runtime.sendMessage({ type: 'extractContent', content: raw }, res => {
-      console.log('KindReader response:', res);
-      if (res.error) {
-        target.innerText = 'Error: ' + res.error;
-      } else if (!res.content || !res.content.trim()) {
-        target.innerText = 'No content extracted. Raw LLM output: ' + JSON.stringify(res);
-      } else {
-        target.innerHTML = res.content;
+    const port = chrome.runtime.connect({ name: 'stream' });
+    // buffer incomplete HTML between chunks
+    let leftover = '';
+    port.onMessage.addListener(msg => {
+      if (msg.error) {
+        target.innerText = 'Error: ' + msg.error;
+        port.disconnect();
+      } else if (msg.chunk) {
+        // decode HTML entities
+        const ta = document.createElement('textarea');
+        ta.innerHTML = msg.chunk;
+        // strip newline characters and accumulate
+        const decoded = ta.value.replace(/\r?\n/g, '');
+        const html = leftover + decoded;
+        // find last complete block-level close tag
+        let safe = '';
+        let lastCloseIdx = -1;
+        const closeTagRegex = /<\/(?:p|h[1-6]|div|section|article|header|footer|aside|figure|figcaption|blockquote|ul|ol|li)>/gi;
+        let match;
+        while ((match = closeTagRegex.exec(html)) !== null) {
+          lastCloseIdx = match.index + match[0].length;
+        }
+        if (lastCloseIdx !== -1) {
+          safe = html.slice(0, lastCloseIdx);
+          leftover = html.slice(lastCloseIdx);
+        } else {
+          leftover = html;
+        }
+        if (safe) {
+          const frag = document.createRange().createContextualFragment(safe);
+          // remove whitespace-only text nodes
+          const walker = document.createTreeWalker(frag, NodeFilter.SHOW_TEXT, {
+            acceptNode(node) { return !/\S/.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+          });
+          const removeList = [];
+          let node;
+          while (node = walker.nextNode()) removeList.push(node);
+          removeList.forEach(n => n.parentNode.removeChild(n));
+          // resolve relative image URLs
+          frag.querySelectorAll('img').forEach(img => {
+            const src = img.getAttribute('src');
+            if (src && !/^https?:\/\//.test(src) && !src.startsWith('data:')) {
+              img.src = new URL(src, document.baseURI).href;
+            }
+          });
+          target.appendChild(frag);
+        }
+      } else if (msg.done) {
+        // flush leftover
+        if (leftover) {
+          const fin = document.createRange().createContextualFragment(leftover);
+          target.appendChild(fin);
+          leftover = '';
+        }
+        target.focus();
+        port.disconnect();
       }
-      target.focus();
     });
+    // initiate streaming extraction
+    port.postMessage({ type: 'extractStream', content: raw });
   }
 }
 
