@@ -64,7 +64,6 @@ function createSidepane() {
       </div>
     </div>
     <div id="kind-reader-content" class="theme-day" aria-live="polite" tabindex="0">
-      <div class="kr-spinner" aria-label="Loading"></div>
     </div>
     <!-- overlay for settings -->
     <div id="kr-overlay" class="kr-hidden">
@@ -101,6 +100,10 @@ function createSidepane() {
       </div>
     </div>
   `;
+  const spinnerEl = document.createElement('div');
+  spinnerEl.className = 'kr-spinner';
+  spinnerEl.setAttribute('aria-label', 'Loading');
+  pane.querySelector('#kind-reader-content').appendChild(spinnerEl);
   document.body.appendChild(pane);
   setTimeout(()=>pane.focus(), 0); // Focus trap
   // Keyboard: ESC to close
@@ -156,18 +159,14 @@ function createSidepane() {
       document.documentElement.style.setProperty('--kr-link', pal.link);
       pane.className = 'theme-' + themeKey;
       const contentEl = document.getElementById('kind-reader-content');
-      contentEl.innerHTML = '<div class="kr-spinner" aria-label="Loading"></div>';
+      contentEl.innerHTML = '';
+      const spinnerEl = document.createElement('div');
+      spinnerEl.className = 'kr-spinner';
+      spinnerEl.setAttribute('aria-label', 'Loading');
+      contentEl.appendChild(spinnerEl);
       contentEl.classList.toggle('kr-child-safe', newChild);
       overlay.classList.add('kr-hidden');
       processQueue();
-      // Force inline link styling to override host page styles
-      contentEl.querySelectorAll('a').forEach(a => {
-        a.style.setProperty('color', pal.link, 'important');
-        a.style.setProperty('textDecoration', 'underline', 'important');
-        a.addEventListener('mouseover', () => a.style.setProperty('color', pal.fg, 'important'));
-        a.addEventListener('mouseout', () => a.style.setProperty('color', pal.link, 'important'));
-        a.addEventListener('focus', () => a.style.setProperty('outline', '2px dashed ' + pal.link, 'important'));
-      });
     };
     if (!themePalettes[themeKey]) {
       applyBtn.disabled = true;
@@ -260,13 +259,7 @@ function createSidepane() {
           leftover = html;
         }
         if (safe) {
-          // remove spinner on first fragment
-          if (firstChunk) {
-            const spinner = target.querySelector('.kr-spinner');
-            if (spinner) spinner.remove();
-            firstChunk = false;
-          }
-          // enqueue each complete block
+          // spinner stays until all fragments are loaded
           let start = 0;
           closeTagRegex.lastIndex = 0;
           while ((match = closeTagRegex.exec(safe)) !== null) {
@@ -282,6 +275,9 @@ function createSidepane() {
           leftover = '';
           processQueue();
         }
+        // remove spinner after all fragments load
+        const spinnerDone = target.querySelector('.kr-spinner');
+        if (spinnerDone) spinnerDone.remove();
         port.disconnect();
       }
     });
@@ -347,7 +343,20 @@ function processQueue() {
           img.src = new URL(src, document.baseURI).href;
         }
       });
-      document.getElementById('kind-reader-content').appendChild(frag);
+      // apply inline link styling to override host CSS in original view
+      const linkColorSync = getComputedStyle(document.documentElement).getPropertyValue('--kr-link').trim();
+      const fgColorSync = getComputedStyle(document.documentElement).getPropertyValue('--kr-fg').trim();
+      frag.querySelectorAll('a').forEach(a => {
+        a.style.setProperty('color', linkColorSync, 'important');
+        a.style.setProperty('textDecoration', 'underline', 'important');
+        a.addEventListener('mouseover', () => a.style.setProperty('color', fgColorSync, 'important'));
+        a.addEventListener('mouseout', () => a.style.setProperty('color', linkColorSync, 'important'));
+        a.addEventListener('focus', () => a.style.setProperty('outline', '2px dashed ' + linkColorSync, 'important'));
+      });
+      const contentElSync = document.getElementById('kind-reader-content');
+      const spinnerSync = contentElSync.querySelector('.kr-spinner');
+      if (spinnerSync) contentElSync.insertBefore(frag, spinnerSync);
+      else contentElSync.appendChild(frag);
     }
     processing = false;
     return;
@@ -392,7 +401,16 @@ function processQueue() {
             a.addEventListener('mouseout', () => a.style.setProperty('color', linkColor, 'important'));
             a.addEventListener('focus', () => a.style.setProperty('outline', '2px dashed ' + linkColor, 'important'));
           });
-          document.getElementById('kind-reader-content').appendChild(frag);
+          const contentElTrans = document.getElementById('kind-reader-content');
+          const spinnerTrans = contentElTrans.querySelector('.kr-spinner');
+          if (spinnerTrans) contentElTrans.insertBefore(frag, spinnerTrans);
+          else contentElTrans.appendChild(frag);
+          // remove loader spinner after last fragment
+          if (processedCount >= originalQueue.length) {
+            const contentElTransAfter = document.getElementById('kind-reader-content');
+            const spinnerTransAfter = contentElTransAfter.querySelector('.kr-spinner');
+            if (spinnerTransAfter) spinnerTransAfter.remove();
+          }
         }
         processing = false;
         processQueue();
