@@ -138,7 +138,7 @@ IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. 
         body: JSON.stringify({
           model: 'gpt-4.1-mini',
           messages: [
-            { role: 'system', content: `You are a professional UI designer. Carefully think through multiple colors that strongly evoke the theme "${msg.theme}", ensuring text colors maintain at least a 4.5:1 contrast ratio against the background. Then output only the final JSON object with keys "bg" (background), "fg" (text), and "link" (link color) using hex codes. Do not include any extra text or explanation.` },
+            { role: 'system', content: `You are a professional UI designer. Carefully think through multiple colors that strongly evoke the theme "${msg.theme}", ensuring text colors maintain at least a 4.5:1 contrast ratio against the background. Respond with ONLY a JSON object with keys "bg", "fg", and "link" (hex codes). Do NOT include any markdown fences or explanatory text.` },
             { role: 'user', content: msg.theme }
           ],
           temperature: 0.7
@@ -147,6 +147,10 @@ IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. 
       .then(res => res.json())
       .then(data => {
         let content = data.choices?.[0]?.message?.content || '';
+        // Strip markdown fences and extract JSON substring
+        content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) content = jsonMatch[0];
         try {
           const palette = JSON.parse(content);
           sendResponse({ palette });

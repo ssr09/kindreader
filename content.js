@@ -89,7 +89,7 @@ function createSidepane() {
           </div>
 
           <label for="kr-style-input">Rewrite Style:</label>
-          <input type="text" id="kr-style-input" value="Original" placeholder="e.g. Spanish, Hinglish, Pirate, Elementary English">
+          <input type="text" id="kr-style-input" value="" placeholder="e.g. Spanish, Hinglish, Pirate, Elementary English">
           <div class="kr-suggestions">
             <button type="button" class="kr-suggest">Original</button>
             <button type="button" class="kr-suggest">Spanish</button>
@@ -146,13 +146,7 @@ function createSidepane() {
   const krChildSafeSelect = document.getElementById('kr-child-safe-select');
   const applyBtn = document.getElementById('kr-apply-btn');
   const cancelBtn = document.getElementById('kr-cancel-btn');
-  settingsBtn.addEventListener('click', e => {
-    e.preventDefault();
-    // Prefill default values on open
-    krThemeInput.value = 'Day';
-    krStyleInput.value = 'Original';
-    overlay.classList.remove('kr-hidden');
-  });
+  settingsBtn.addEventListener('click', e => { e.preventDefault(); overlay.classList.remove('kr-hidden'); });
   cancelBtn.addEventListener('click', () => overlay.classList.add('kr-hidden'));
   // suggestions autofill
   const suggestionBtns = overlay.querySelectorAll('.kr-suggest');
@@ -193,7 +187,7 @@ function createSidepane() {
           themePalettes[themeKey] = response.palette;
           chrome.storage.sync.get('customPalettes', ({ customPalettes = {} }) => {
             customPalettes[themeKey] = response.palette;
-            chrome.storage.sync.set({ theme: themeKey, childSafe: newChild, customPalettes });
+            chrome.storage.sync.set({ theme: themeKey, style: newStyle, childSafe: newChild, customPalettes });
           });
           applyThemeAndContinue(response.palette);
         } else {
@@ -202,13 +196,13 @@ function createSidepane() {
         }
       });
     } else {
-      chrome.storage.sync.set({ theme: themeKey, childSafe: newChild });
+      chrome.storage.sync.set({ theme: themeKey, style: newStyle, childSafe: newChild });
       applyThemeAndContinue(themePalettes[themeKey]);
     }
   });
 
   // load persisted settings
-  chrome.storage.sync.get(['theme','childSafe','customPalettes'], ({theme,childSafe,customPalettes}) => {
+  chrome.storage.sync.get(['theme','style','childSafe','customPalettes'], ({theme,style,childSafe,customPalettes}) => {
     if (customPalettes) Object.assign(themePalettes, customPalettes);
     const contentEl = document.getElementById('kind-reader-content');
     if (theme) {
@@ -217,12 +211,13 @@ function createSidepane() {
       document.documentElement.style.setProperty('--kr-fg', pal.fg);
       document.documentElement.style.setProperty('--kr-link', pal.link);
       pane.className = 'theme-' + theme;
-      krThemeInput.value = theme;
+      krThemeInput.value = theme.charAt(0).toUpperCase() + theme.slice(1);
     }
     if (childSafe) contentEl.classList.add('kr-child-safe');
-    // reset rewrite style when pane loads
-    currentStyle = 'original';
-    krStyleInput.value = '';
+    // set rewrite style when pane loads
+    const styleKey = style || 'original';
+    currentStyle = styleKey;
+    if (krStyleInput) krStyleInput.value = styleKey.charAt(0).toUpperCase() + styleKey.slice(1);
   });
 
   // Replace kr-blur text with asterisks on copy
