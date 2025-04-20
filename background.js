@@ -98,6 +98,34 @@ IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. 
       .catch(err => sendResponse({ error: err.toString() }));
     });
   }
+  if (msg.type === 'transformText') {
+    const snippet = msg.html || '';
+    const style = msg.style || 'original';
+    chrome.storage.sync.get('apiKey', ({ apiKey }) => {
+      if (!apiKey) { sendResponse({ error: 'API key not set' }); return; }
+      fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type':'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4.1-mini',
+          messages: [
+            { role: 'system', content: `Rewrite the following HTML/text into ${style} (preserve all tags), then wrap any profane words with <span class="kr-blur">…</span>.` },
+            { role: 'user', content: snippet }
+          ]
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) sendResponse({ error: data.error.message });
+        else sendResponse({ html: data.choices[0].message.content || snippet });
+      })
+      .catch(err => sendResponse({ error: err.toString() }));
+    });
+    return true;
+  }
   return true; // keep channel open for sendResponse
 });
 

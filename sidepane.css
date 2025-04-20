@@ -206,3 +206,20 @@
   background: var(--kr-bg);
   color: var(--kr-fg);
 }
+
+/* layout for each setting row */
+#kind-reader-settings-menu .kr-setting-item {
+  margin: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#kind-reader-settings-menu label {
+  font-size: 0.95em;
+}
+
+#translate-select {
+  padding: 4px 8px;
+  border-radius: 4px;
+}

@@ -57,6 +57,17 @@ function createSidepane() {
           <option value="sepia">Sepia</option>
         </select>
         <div class="kr-setting-item">
+          <label for="translate-select">Translate/Style:</label>
+          <select id="translate-select">
+            <option value="original">Original</option>
+            <option value="hindi">Hindi</option>
+            <option value="spanish">Spanish</option>
+            <option value="french">French</option>
+            <option value="pirate">Pirate Talk</option>
+            <option value="groot">Groot Talk</option>
+          </select>
+        </div>
+        <div class="kr-setting-item">
           <label for="child-safe-toggle">Child Safe Mode</label>
           <input type="checkbox" id="child-safe-toggle" aria-label="Child Safe Mode">
         </div>
@@ -108,6 +119,88 @@ function createSidepane() {
     document.getElementById('kind-reader-content').className = 'theme-' + theme;
     pane.className = 'theme-' + theme;
   });
+  // Translate/Style selector
+  const translateSelect = document.getElementById('translate-select');
+  let currentStyle = 'original';
+  let runId = 0;
+  translateSelect.addEventListener('change', e => {
+    // reset leftover buffer to avoid leaking stale fragments
+    leftover = '';
+    currentStyle = e.target.value;
+    runId++;
+    processedCount = 0;
+    processing = false; // restart pipeline
+    const contentEl = document.getElementById('kind-reader-content');
+    contentEl.innerHTML = '';
+    contentEl.classList.toggle(
+      'kr-child-safe',
+      document.getElementById('child-safe-toggle').checked
+    );
+    processQueue();
+  });
+  // translation queue and pipeline
+  const originalQueue = [];
+  let processedCount = 0, processing = false;
+  let leftover = '';
+  function processQueue() {
+    const thisRun = runId;
+    if (processing || processedCount >= originalQueue.length) return;
+    processing = true;
+    if (currentStyle === 'original') {
+      // flush all pending blocks synchronously
+      if (thisRun !== runId) { processing = false; return; }
+      while (processedCount < originalQueue.length) {
+        const blk = originalQueue[processedCount++];
+        const frag = document.createRange().createContextualFragment(blk);
+        frag.querySelectorAll('img').forEach(img => {
+          const src = img.getAttribute('src');
+          if (src && !/^https?:\/\//.test(src) && !src.startsWith('data:')) {
+            img.src = new URL(src, document.baseURI).href;
+          }
+        });
+        target.appendChild(frag);
+      }
+      processing = false;
+      return;
+    } else {
+      const block = originalQueue[processedCount++];
+      console.log('[KindReader] Translating block:', block);
+      chrome.runtime.sendMessage(
+        { type: 'transformText', html: block, style: currentStyle },
+        resp => {
+          console.log('[KindReader] transformText resp:', resp);
+          if (thisRun !== runId) { processing = false; return; }
+          if (!resp.error) {
+            const frag = document.createRange()
+              .createContextualFragment(resp.html);
+            // strip whitespace-only text nodes
+            const walker = document.createTreeWalker(
+              frag, NodeFilter.SHOW_TEXT,
+              { acceptNode(node) {
+                  return !/\S/.test(node.nodeValue)
+                    ? NodeFilter.FILTER_ACCEPT
+                    : NodeFilter.FILTER_REJECT;
+              } }
+            );
+            const toRemove = [];
+            let n;
+            while (n = walker.nextNode()) toRemove.push(n);
+            toRemove.forEach(x => x.parentNode.removeChild(x));
+            // resolve image URLs
+            frag.querySelectorAll('img').forEach(img => {
+              const src = img.getAttribute('src');
+              if (src && !/^https?:\/\//.test(src) && !src.startsWith('data:')) {
+                img.src = new URL(src, document.baseURI).href;
+              }
+            });
+            target.appendChild(frag);
+          }
+          processing = false;
+          processQueue();
+        }
+      );
+    }
+  }
   // Set initial theme
   pane.className = 'theme-day';
   let firstChunk = true;
@@ -135,7 +228,6 @@ function createSidepane() {
   } else {
     const port = chrome.runtime.connect({ name: 'stream' });
     // buffer incomplete HTML between chunks
-    let leftover = '';
     port.onMessage.addListener(msg => {
       if (msg.error) {
         target.innerText = 'Error: ' + msg.error;
@@ -168,37 +260,22 @@ function createSidepane() {
             if (spinner) spinner.remove();
             firstChunk = false;
           }
-          const frag = document.createRange().createContextualFragment(safe);
-          // remove whitespace-only text nodes
-          const walker = document.createTreeWalker(frag, NodeFilter.SHOW_TEXT, {
-            acceptNode(node) { return !/\S/.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
-          });
-          const removeList = [];
-          let node;
-          while (node = walker.nextNode()) removeList.push(node);
-          removeList.forEach(n => n.parentNode.removeChild(n));
-          // resolve relative image URLs
-          frag.querySelectorAll('img').forEach(img => {
-            const src = img.getAttribute('src');
-            if (src && !/^https?:\/\//.test(src) && !src.startsWith('data:')) {
-              img.src = new URL(src, document.baseURI).href;
-            }
-          });
-          // always wrap profanity via LLM
-          chrome.runtime.sendMessage({ type: 'checkProfanity', html: safe }, resp => {
-            const profFrag = document.createRange()
-              .createContextualFragment(resp.html);
-            target.appendChild(profFrag);
-          });
+          // enqueue each complete block
+          let start = 0;
+          closeTagRegex.lastIndex = 0;
+          while ((match = closeTagRegex.exec(safe)) !== null) {
+            const block = safe.slice(start, match.index + match[0].length);
+            start = match.index + match[0].length;
+            originalQueue.push(block);
+          }
+          processQueue();
         }
       } else if (msg.done) {
-        // flush leftover
         if (leftover) {
-          const fin = document.createRange().createContextualFragment(leftover);
-          target.appendChild(fin);
+          originalQueue.push(leftover);
           leftover = '';
+          processQueue();
         }
-        target.focus();
         port.disconnect();
       }
     });
