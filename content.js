@@ -35,6 +35,10 @@ function getMainContent() {
 // Side pane toggle logic
 let paneOpen = false;
 
+// global control vars
+let currentStyle = 'original';
+let runId = 0;
+
 function createSidepane() {
   const pane = document.createElement('div');
   pane.id = 'kind-reader-sidepane';
@@ -49,32 +53,40 @@ function createSidepane() {
         <button id="kind-reader-settings" aria-label="Settings" title="Settings">⚙️</button>
         <button id="kind-reader-close" aria-label="Close Reader Pane" title="Close KindReader">✕</button>
       </div>
-      <div id="kind-reader-settings-menu" class="kr-hidden">
-        <label for="theme-select">Theme:</label>
-        <select id="theme-select" aria-label="Theme selector">
-          <option value="day">Day</option>
-          <option value="night">Night</option>
-          <option value="sepia">Sepia</option>
-        </select>
-        <div class="kr-setting-item">
-          <label for="translate-select">Translate/Style:</label>
-          <select id="translate-select">
-            <option value="original">Original</option>
-            <option value="hindi">Hindi</option>
-            <option value="spanish">Spanish</option>
-            <option value="french">French</option>
-            <option value="pirate">Pirate Talk</option>
-            <option value="groot">Groot Talk</option>
-          </select>
-        </div>
-        <div class="kr-setting-item">
-          <label for="child-safe-toggle">Child Safe Mode</label>
-          <input type="checkbox" id="child-safe-toggle" aria-label="Child Safe Mode">
-        </div>
-      </div>
     </div>
     <div id="kind-reader-content" class="theme-day" aria-live="polite" tabindex="0">
       <div class="kr-spinner" aria-label="Loading"></div>
+    </div>
+    <!-- overlay for settings -->
+    <div id="kr-overlay" class="kr-hidden">
+      <div id="kr-overlay-content">
+        <h3>Settings</h3>
+        <div class="kr-settings-form">
+          <label for="kr-theme-select">Theme:</label>
+          <select id="kr-theme-select">
+            <option value="day">Day</option>
+            <option value="night">Night</option>
+            <option value="sepia">Sepia</option>
+          </select>
+
+          <label for="kr-style-input">Rewrite Style:</label>
+          <input type="text" id="kr-style-input" placeholder="e.g. Hindi, Pirate Talk, Elementary English">
+          <div class="kr-suggestions">
+            <button type="button" class="kr-suggest">Original</button>
+            <button type="button" class="kr-suggest">Hindi</button>
+            <button type="button" class="kr-suggest">French</button>
+            <button type="button" class="kr-suggest">Pirate Talk</button>
+            <button type="button" class="kr-suggest">Elementary English</button>
+          </div>
+
+          <label for="kr-child-safe-select">Child Safe Mode:</label>
+          <input type="checkbox" id="kr-child-safe-select">
+        </div>
+        <div class="kr-overlay-buttons">
+          <button id="kr-apply-btn">Apply</button>
+          <button id="kr-cancel-btn">Cancel</button>
+        </div>
+      </div>
     </div>
   `;
   document.body.appendChild(pane);
@@ -100,110 +112,50 @@ function createSidepane() {
   document.getElementById('kind-reader-close').addEventListener('keydown', e => {
     if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleSidepane(); }
   });
-  // settings menu toggle
+  // setup overlay interactions and persistence
   const settingsBtn = document.getElementById('kind-reader-settings');
-  const settingsMenu = document.getElementById('kind-reader-settings-menu');
-  settingsBtn.addEventListener('click', e => {
-    e.preventDefault();
-    settingsMenu.classList.toggle('kr-hidden');
-  });
-  const childSafeCheckbox = document.getElementById('child-safe-toggle');
-  childSafeCheckbox.addEventListener('change', e => {
-    document.getElementById('kind-reader-content')
-      .classList.toggle('kr-child-safe', e.target.checked);
-  });
-  // Theme selector
-  const themeSelect = document.getElementById('theme-select');
-  themeSelect.addEventListener('change', e => {
-    const theme = e.target.value;
-    document.getElementById('kind-reader-content').className = 'theme-' + theme;
-    pane.className = 'theme-' + theme;
-  });
-  // Translate/Style selector
-  const translateSelect = document.getElementById('translate-select');
-  let currentStyle = 'original';
-  let runId = 0;
-  translateSelect.addEventListener('change', e => {
-    // reset leftover buffer to avoid leaking stale fragments
-    leftover = '';
-    currentStyle = e.target.value;
+  const overlay = document.getElementById('kr-overlay');
+  const krThemeSelect = document.getElementById('kr-theme-select');
+  const krStyleInput = document.getElementById('kr-style-input');
+  const krChildSafeSelect = document.getElementById('kr-child-safe-select');
+  const applyBtn = document.getElementById('kr-apply-btn');
+  const cancelBtn = document.getElementById('kr-cancel-btn');
+  settingsBtn.addEventListener('click', e => { e.preventDefault(); overlay.classList.remove('kr-hidden'); });
+  cancelBtn.addEventListener('click', () => overlay.classList.add('kr-hidden'));
+  // suggestions autofill
+  const suggestionBtns = overlay.querySelectorAll('.kr-suggest');
+  suggestionBtns.forEach(btn => btn.addEventListener('click', () => { krStyleInput.value = btn.textContent; }));
+  applyBtn.addEventListener('click', () => {
+    const newTheme = krThemeSelect.value;
+    pane.className = 'theme-' + newTheme;
+    const contentEl = document.getElementById('kind-reader-content');
+    const newChild = krChildSafeSelect.checked;
+    contentEl.classList.toggle('kr-child-safe', newChild);
+    const styleVal = krStyleInput.value.trim();
+    const newStyle = styleVal ? styleVal.toLowerCase() : 'original';
+    currentStyle = newStyle;
     runId++;
     processedCount = 0;
-    processing = false; // restart pipeline
-    const contentEl = document.getElementById('kind-reader-content');
-    contentEl.innerHTML = '';
-    contentEl.classList.toggle(
-      'kr-child-safe',
-      document.getElementById('child-safe-toggle').checked
-    );
+    processing = false;
+    contentEl.innerHTML = '<div class="kr-spinner" aria-label="Loading"></div>';
+    chrome.storage.sync.set({ theme: newTheme, childSafe: newChild });
+    overlay.classList.add('kr-hidden');
     processQueue();
   });
-  // translation queue and pipeline
-  const originalQueue = [];
-  let processedCount = 0, processing = false;
-  let leftover = '';
-  function processQueue() {
-    const thisRun = runId;
-    if (processing || processedCount >= originalQueue.length) return;
-    processing = true;
-    if (currentStyle === 'original') {
-      // flush all pending blocks synchronously
-      if (thisRun !== runId) { processing = false; return; }
-      while (processedCount < originalQueue.length) {
-        const blk = originalQueue[processedCount++];
-        const frag = document.createRange().createContextualFragment(blk);
-        frag.querySelectorAll('img').forEach(img => {
-          const src = img.getAttribute('src');
-          if (src && !/^https?:\/\//.test(src) && !src.startsWith('data:')) {
-            img.src = new URL(src, document.baseURI).href;
-          }
-        });
-        target.appendChild(frag);
-      }
-      processing = false;
-      return;
-    } else {
-      const block = originalQueue[processedCount++];
-      console.log('[KindReader] Translating block:', block);
-      chrome.runtime.sendMessage(
-        { type: 'transformText', html: block, style: currentStyle },
-        resp => {
-          console.log('[KindReader] transformText resp:', resp);
-          if (thisRun !== runId) { processing = false; return; }
-          if (!resp.error) {
-            const frag = document.createRange()
-              .createContextualFragment(resp.html);
-            // strip whitespace-only text nodes
-            const walker = document.createTreeWalker(
-              frag, NodeFilter.SHOW_TEXT,
-              { acceptNode(node) {
-                  return !/\S/.test(node.nodeValue)
-                    ? NodeFilter.FILTER_ACCEPT
-                    : NodeFilter.FILTER_REJECT;
-              } }
-            );
-            const toRemove = [];
-            let n;
-            while (n = walker.nextNode()) toRemove.push(n);
-            toRemove.forEach(x => x.parentNode.removeChild(x));
-            // resolve image URLs
-            frag.querySelectorAll('img').forEach(img => {
-              const src = img.getAttribute('src');
-              if (src && !/^https?:\/\//.test(src) && !src.startsWith('data:')) {
-                img.src = new URL(src, document.baseURI).href;
-              }
-            });
-            target.appendChild(frag);
-          }
-          processing = false;
-          processQueue();
-        }
-      );
+
+  // load persisted settings
+  chrome.storage.sync.get(['theme','childSafe'], ({theme,childSafe}) => {
+    const contentEl = document.getElementById('kind-reader-content');
+    if (theme) {
+      pane.className = 'theme-' + theme;
+      contentEl.className = 'theme-' + theme;
     }
-  }
-  // Set initial theme
-  pane.className = 'theme-day';
-  let firstChunk = true;
+    if (childSafe) contentEl.classList.add('kr-child-safe');
+    // reset rewrite style when pane loads
+    currentStyle = 'original';
+    krStyleInput.value = '';
+  });
+
   // Replace kr-blur text with asterisks on copy
   document.getElementById('kind-reader-content').addEventListener('copy', function(e) {
     const selection = window.getSelection();
@@ -223,6 +175,7 @@ function createSidepane() {
   const raw = getMainContent();
   console.log('KindReader raw length:', raw.length);
   const target = document.getElementById('kind-reader-content');
+  let firstChunk = true;
   if (!raw) {
     target.innerText = 'No main content detected on this page.';
   } else {
@@ -284,6 +237,21 @@ function createSidepane() {
   }
 }
 
+function removeSidepane() {
+  const pane = document.getElementById('kind-reader-sidepane');
+  if (pane) pane.remove();
+}
+
+function toggleSidepane() {
+  if (paneOpen) removeSidepane(); else createSidepane();
+  paneOpen = !paneOpen;
+}
+
+// Listen for extension icon clicks
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'toggleSidepane') toggleSidepane();
+});
+
 // Spinner CSS (injected if not present)
 if (!document.getElementById('kr-spinner-style')) {
   const style = document.createElement('style');
@@ -306,17 +274,66 @@ if (!document.getElementById('kr-spinner-style')) {
   document.head.appendChild(style);
 }
 
-function removeSidepane() {
-  const pane = document.getElementById('kind-reader-sidepane');
-  if (pane) pane.remove();
+// translation queue and pipeline
+const originalQueue = [];
+let processedCount = 0, processing = false;
+let leftover = '';
+function processQueue() {
+  const thisRun = runId;
+  if (processing || processedCount >= originalQueue.length) return;
+  processing = true;
+  if (currentStyle === 'original') {
+    // flush all pending blocks synchronously
+    if (thisRun !== runId) { processing = false; return; }
+    while (processedCount < originalQueue.length) {
+      const blk = originalQueue[processedCount++];
+      const frag = document.createRange().createContextualFragment(blk);
+      frag.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('src');
+        if (src && !/^https?:\/\//.test(src) && !src.startsWith('data:')) {
+          img.src = new URL(src, document.baseURI).href;
+        }
+      });
+      document.getElementById('kind-reader-content').appendChild(frag);
+    }
+    processing = false;
+    return;
+  } else {
+    const block = originalQueue[processedCount++];
+    console.log('[KindReader] Translating block:', block);
+    chrome.runtime.sendMessage(
+      { type: 'transformText', html: block, style: currentStyle },
+      resp => {
+        console.log('[KindReader] transformText resp:', resp);
+        if (thisRun !== runId) { processing = false; return; }
+        if (!resp.error) {
+          const frag = document.createRange()
+            .createContextualFragment(resp.html);
+          // strip whitespace-only text nodes
+          const walker = document.createTreeWalker(
+            frag, NodeFilter.SHOW_TEXT,
+            { acceptNode(node) {
+                return !/\S/.test(node.nodeValue)
+                  ? NodeFilter.FILTER_ACCEPT
+                  : NodeFilter.FILTER_REJECT;
+            } }
+          );
+          const toRemove = [];
+          let n;
+          while (n = walker.nextNode()) toRemove.push(n);
+          toRemove.forEach(x => x.parentNode.removeChild(x));
+          // resolve image URLs
+          frag.querySelectorAll('img').forEach(img => {
+            const src = img.getAttribute('src');
+            if (src && !/^https?:\/\//.test(src) && !src.startsWith('data:')) {
+              img.src = new URL(src, document.baseURI).href;
+            }
+          });
+          document.getElementById('kind-reader-content').appendChild(frag);
+        }
+        processing = false;
+        processQueue();
+      }
+    );
+  }
 }
-
-function toggleSidepane() {
-  if (paneOpen) removeSidepane(); else createSidepane();
-  paneOpen = !paneOpen;
-}
-
-// Listen for extension icon clicks
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === 'toggleSidepane') toggleSidepane();
-});
