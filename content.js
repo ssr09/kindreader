@@ -59,8 +59,16 @@ function createSidepane() {
     <div id="kind-reader-controls">
       <span id="kind-reader-title">Kind Reader</span>
       <div class="kr-controls-right">
-        <button id="kind-reader-settings" aria-label="Settings" title="Settings">⚙️</button>
-        <button id="kind-reader-close" aria-label="Close Reader Pane" title="Close KindReader">✕</button>
+        <button id="kind-reader-settings" aria-label="Settings" title="Settings">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+  <path d="M19.14,12.94a7.07,7.07,0,0,0,.05-1,7.07,7.07,0,0,0-.05-1l2.11-1.65a.5.5,0,0,0,.12-.63l-2-3.46a.5.5,0,0,0-.61-.22l-2.49,1a7.23,7.23,0,0,0-1.73-1l-.38-2.65A.5.5,0,0,0,13,2H11a.5.5,0,0,0-.5.42l-.38,2.65a7.23,7.23,0,0,0-1.73,1l-2.49-1a.5.5,0,0,0-.61.22l-2,3.46a.5.5,0,0,0,.12.63l2.11,1.65a7.07,7.07,0,0,0-.05,1,7.07,7.07,0,0,0,.05,1L2.86,14.59a.5.5,0,0,0-.12.63l2,3.46a.5.5,0,0,0,.61.22l2.49-1a7.23,7.23,0,0,0,1.73,1l.38,2.65A.5.5,0,0,0,11,22h2a.5.5,0,0,0,.5-.42l.38-2.65a7.23,7.23,0,0,0,1.73-1l2.49,1a.5.5,0,0,0,.61-.22l2-3.46a.5.5,0,0,0-.12-.63ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/>
+</svg>
+        </button>
+        <button id="kind-reader-close" aria-label="Close Reader Pane" title="Close KindReader">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M18.3 5.71l-1.41-1.41L12 9.18 7.11 4.29 5.7 5.7 10.59 10.59 5.7 15.49l1.41 1.41L12 12l4.89 4.9 1.41-1.41L13.41 10.6z"/>
+          </svg>
+        </button>
       </div>
     </div>
     <div id="kind-reader-content" class="theme-day" aria-live="polite" tabindex="0">
@@ -311,8 +319,8 @@ if (!document.getElementById('kr-spinner-style')) {
       width: 38px !important;
       height: 38px !important;
       margin: 60px auto !important;
-      border: 4px solid #e5e5e5 !important;
-      border-top: 4px solid #e65a50 !important;
+      border: 4px solid var(--kr-fg) !important;
+      border-top: 4px solid var(--kr-link) !important;
       border-radius: 50% !important;
       animation: kr-spin 1s linear infinite !important;
     }
@@ -352,6 +360,10 @@ function processQueue() {
         a.addEventListener('mouseover', () => a.style.setProperty('color', fgColorSync, 'important'));
         a.addEventListener('mouseout', () => a.style.setProperty('color', linkColorSync, 'important'));
         a.addEventListener('focus', () => a.style.setProperty('outline', '2px dashed ' + linkColorSync, 'important'));
+      });
+      // apply inline heading styling in sync branch
+      frag.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(h => {
+        h.style.setProperty('color', fgColorSync, 'important');
       });
       const contentElSync = document.getElementById('kind-reader-content');
       const spinnerSync = contentElSync.querySelector('.kr-spinner');
@@ -400,6 +412,10 @@ function processQueue() {
             a.addEventListener('mouseover', () => a.style.setProperty('color', fgColor, 'important'));
             a.addEventListener('mouseout', () => a.style.setProperty('color', linkColor, 'important'));
             a.addEventListener('focus', () => a.style.setProperty('outline', '2px dashed ' + linkColor, 'important'));
+          });
+          // apply inline heading styling in translation branch
+          frag.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(h => {
+            h.style.setProperty('color', fgColor, 'important');
           });
           const contentElTrans = document.getElementById('kind-reader-content');
           const spinnerTrans = contentElTrans.querySelector('.kr-spinner');

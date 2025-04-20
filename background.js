@@ -138,7 +138,7 @@ IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. 
         body: JSON.stringify({
           model: 'gpt-4.1-mini',
           messages: [
-            { role: 'system', content: `Generate an accessible HTML/CSS color palette for the theme name "${msg.theme}". Respond with JSON like {\"bg\": \"#hex\", \"fg\": \"#hex\", \"link\": \"#hex\"}, ensuring contrast ratio ≥4.5:1.` },
+            { role: 'system', content: `You are a professional UI designer. Carefully think through multiple colors that strongly evoke the theme "${msg.theme}", ensuring text colors maintain at least a 4.5:1 contrast ratio against the background. Then output only the final JSON object with keys "bg" (background), "fg" (text), and "link" (link color) using hex codes. Do not include any extra text or explanation.` },
             { role: 'user', content: msg.theme }
           ],
           temperature: 0.7
