@@ -38,6 +38,15 @@ let paneOpen = false;
 // global control vars
 let currentStyle = 'original';
 let runId = 0;
+// theme palettes mapping for accessible contrast
+const themePalettes = {
+  day:    { bg:'#ffffff', fg:'#181a1b', link:'#1a0dab' },
+  night:  { bg:'#181a1b', fg:'#ffffff', link:'#8ab4f8' },
+  sepia:  { bg:'#f4ecd8', fg:'#5b4636', link:'#3c5a99' }, // dark blue for contrast
+  solaris:{ bg:'#ff5c39', fg:'#ffffff', link:'#252aff' }, // deep blue
+  sunset: { bg:'#ffad5a', fg:'#630236', link:'#0050b3' }, // strong blue
+  miami:  { bg:'#00d2ff', fg:'#ff00c8', link:'#181a1b' }, // dark text for neon bg
+};
 
 function createSidepane() {
   const pane = document.createElement('div');
@@ -62,12 +71,15 @@ function createSidepane() {
       <div id="kr-overlay-content">
         <h3>Settings</h3>
         <div class="kr-settings-form">
-          <label for="kr-theme-select">Theme:</label>
-          <select id="kr-theme-select">
-            <option value="day">Day</option>
-            <option value="night">Night</option>
-            <option value="sepia">Sepia</option>
-          </select>
+          <label for="kr-theme-input">Theme:</label>
+          <input type="text" id="kr-theme-input" placeholder="e.g. Day, Night, Solaris, Sunset, Miami">
+          <div class="kr-theme-suggestions">
+            <button type="button" class="kr-theme-suggest">Day</button>
+            <button type="button" class="kr-theme-suggest">Night</button>
+            <button type="button" class="kr-theme-suggest">Solaris</button>
+            <button type="button" class="kr-theme-suggest">Sunset</button>
+            <button type="button" class="kr-theme-suggest">Miami</button>
+          </div>
 
           <label for="kr-style-input">Rewrite Style:</label>
           <input type="text" id="kr-style-input" placeholder="e.g. Hindi, Pirate Talk, Elementary English">
@@ -115,7 +127,7 @@ function createSidepane() {
   // setup overlay interactions and persistence
   const settingsBtn = document.getElementById('kind-reader-settings');
   const overlay = document.getElementById('kr-overlay');
-  const krThemeSelect = document.getElementById('kr-theme-select');
+  const krThemeInput = document.getElementById('kr-theme-input');
   const krStyleInput = document.getElementById('kr-style-input');
   const krChildSafeSelect = document.getElementById('kr-child-safe-select');
   const applyBtn = document.getElementById('kr-apply-btn');
@@ -125,30 +137,71 @@ function createSidepane() {
   // suggestions autofill
   const suggestionBtns = overlay.querySelectorAll('.kr-suggest');
   suggestionBtns.forEach(btn => btn.addEventListener('click', () => { krStyleInput.value = btn.textContent; }));
+  // theme suggestions autofill
+  const themeSuggestionBtns = overlay.querySelectorAll('.kr-theme-suggest');
+  themeSuggestionBtns.forEach(btn => btn.addEventListener('click', () => { krThemeInput.value = btn.textContent; }));
   applyBtn.addEventListener('click', () => {
-    const newTheme = krThemeSelect.value;
-    pane.className = 'theme-' + newTheme;
-    const contentEl = document.getElementById('kind-reader-content');
+    const themeVal = krThemeInput.value.trim() || 'day';
+    const themeKey = themeVal.toLowerCase();
     const newChild = krChildSafeSelect.checked;
-    contentEl.classList.toggle('kr-child-safe', newChild);
     const styleVal = krStyleInput.value.trim();
     const newStyle = styleVal ? styleVal.toLowerCase() : 'original';
     currentStyle = newStyle;
     runId++;
     processedCount = 0;
     processing = false;
-    contentEl.innerHTML = '<div class="kr-spinner" aria-label="Loading"></div>';
-    chrome.storage.sync.set({ theme: newTheme, childSafe: newChild });
-    overlay.classList.add('kr-hidden');
-    processQueue();
+    const applyThemeAndContinue = pal => {
+      document.documentElement.style.setProperty('--kr-bg', pal.bg);
+      document.documentElement.style.setProperty('--kr-fg', pal.fg);
+      document.documentElement.style.setProperty('--kr-link', pal.link);
+      pane.className = 'theme-' + themeKey;
+      const contentEl = document.getElementById('kind-reader-content');
+      contentEl.innerHTML = '<div class="kr-spinner" aria-label="Loading"></div>';
+      contentEl.classList.toggle('kr-child-safe', newChild);
+      overlay.classList.add('kr-hidden');
+      processQueue();
+      // Force inline link styling to override host page styles
+      contentEl.querySelectorAll('a').forEach(a => {
+        a.style.setProperty('color', pal.link, 'important');
+        a.style.setProperty('textDecoration', 'underline', 'important');
+        a.addEventListener('mouseover', () => a.style.setProperty('color', pal.fg, 'important'));
+        a.addEventListener('mouseout', () => a.style.setProperty('color', pal.link, 'important'));
+        a.addEventListener('focus', () => a.style.setProperty('outline', '2px dashed ' + pal.link, 'important'));
+      });
+    };
+    if (!themePalettes[themeKey]) {
+      applyBtn.disabled = true;
+      chrome.runtime.sendMessage({ type: 'generateThemePalette', theme: themeKey }, response => {
+        applyBtn.disabled = false;
+        if (response.palette) {
+          themePalettes[themeKey] = response.palette;
+          chrome.storage.sync.get('customPalettes', ({ customPalettes = {} }) => {
+            customPalettes[themeKey] = response.palette;
+            chrome.storage.sync.set({ theme: themeKey, childSafe: newChild, customPalettes });
+          });
+          applyThemeAndContinue(response.palette);
+        } else {
+          console.error('Theme generation error', response.error);
+          applyThemeAndContinue(themePalettes.day);
+        }
+      });
+    } else {
+      chrome.storage.sync.set({ theme: themeKey, childSafe: newChild });
+      applyThemeAndContinue(themePalettes[themeKey]);
+    }
   });
 
   // load persisted settings
-  chrome.storage.sync.get(['theme','childSafe'], ({theme,childSafe}) => {
+  chrome.storage.sync.get(['theme','childSafe','customPalettes'], ({theme,childSafe,customPalettes}) => {
+    if (customPalettes) Object.assign(themePalettes, customPalettes);
     const contentEl = document.getElementById('kind-reader-content');
     if (theme) {
+      const pal = themePalettes[theme] || themePalettes.day;
+      document.documentElement.style.setProperty('--kr-bg', pal.bg);
+      document.documentElement.style.setProperty('--kr-fg', pal.fg);
+      document.documentElement.style.setProperty('--kr-link', pal.link);
       pane.className = 'theme-' + theme;
-      contentEl.className = 'theme-' + theme;
+      krThemeInput.value = theme;
     }
     if (childSafe) contentEl.classList.add('kr-child-safe');
     // reset rewrite style when pane loads
@@ -328,6 +381,16 @@ function processQueue() {
             if (src && !/^https?:\/\//.test(src) && !src.startsWith('data:')) {
               img.src = new URL(src, document.baseURI).href;
             }
+          });
+          // apply inline link styles to override host CSS
+          const linkColor = getComputedStyle(document.documentElement).getPropertyValue('--kr-link').trim();
+          const fgColor = getComputedStyle(document.documentElement).getPropertyValue('--kr-fg').trim();
+          frag.querySelectorAll('a').forEach(a => {
+            a.style.setProperty('color', linkColor, 'important');
+            a.style.setProperty('textDecoration', 'underline', 'important');
+            a.addEventListener('mouseover', () => a.style.setProperty('color', fgColor, 'important'));
+            a.addEventListener('mouseout', () => a.style.setProperty('color', linkColor, 'important'));
+            a.addEventListener('focus', () => a.style.setProperty('outline', '2px dashed ' + linkColor, 'important'));
           });
           document.getElementById('kind-reader-content').appendChild(frag);
         }

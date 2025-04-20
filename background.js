@@ -126,6 +126,38 @@ IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. 
     });
     return true;
   }
+  if (msg.type === 'generateThemePalette') {
+    chrome.storage.sync.get('apiKey', ({ apiKey }) => {
+      if (!apiKey) { sendResponse({ error: 'API key not set' }); return; }
+      fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4.1-mini',
+          messages: [
+            { role: 'system', content: `Generate an accessible HTML/CSS color palette for the theme name "${msg.theme}". Respond with JSON like {\"bg\": \"#hex\", \"fg\": \"#hex\", \"link\": \"#hex\"}, ensuring contrast ratio ≥4.5:1.` },
+            { role: 'user', content: msg.theme }
+          ],
+          temperature: 0.7
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        let content = data.choices?.[0]?.message?.content || '';
+        try {
+          const palette = JSON.parse(content);
+          sendResponse({ palette });
+        } catch(e) {
+          sendResponse({ error: 'Invalid palette format' });
+        }
+      })
+      .catch(err => sendResponse({ error: err.toString() }));
+    });
+    return true;
+  }
   return true; // keep channel open for sendResponse
 });
 
