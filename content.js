@@ -146,7 +146,12 @@ function createSidepane() {
   const krChildSafeSelect = document.getElementById('kr-child-safe-select');
   const applyBtn = document.getElementById('kr-apply-btn');
   const cancelBtn = document.getElementById('kr-cancel-btn');
-  settingsBtn.addEventListener('click', e => { e.preventDefault(); overlay.classList.remove('kr-hidden'); });
+  settingsBtn.addEventListener('click', e => {
+    e.preventDefault();
+    if (krStyleInput) krStyleInput.value = 'Original';
+    currentStyle = 'original';
+    overlay.classList.remove('kr-hidden');
+  });
   cancelBtn.addEventListener('click', () => overlay.classList.add('kr-hidden'));
   // suggestions autofill
   const suggestionBtns = overlay.querySelectorAll('.kr-suggest');
@@ -187,7 +192,7 @@ function createSidepane() {
           themePalettes[themeKey] = response.palette;
           chrome.storage.sync.get('customPalettes', ({ customPalettes = {} }) => {
             customPalettes[themeKey] = response.palette;
-            chrome.storage.sync.set({ theme: themeKey, style: newStyle, childSafe: newChild, customPalettes });
+            chrome.storage.sync.set({ theme: themeKey, childSafe: newChild, customPalettes });
           });
           applyThemeAndContinue(response.palette);
         } else {
@@ -196,13 +201,13 @@ function createSidepane() {
         }
       });
     } else {
-      chrome.storage.sync.set({ theme: themeKey, style: newStyle, childSafe: newChild });
+      chrome.storage.sync.set({ theme: themeKey, childSafe: newChild });
       applyThemeAndContinue(themePalettes[themeKey]);
     }
   });
 
   // load persisted settings
-  chrome.storage.sync.get(['theme','style','childSafe','customPalettes'], ({theme,style,childSafe,customPalettes}) => {
+  chrome.storage.sync.get(['theme','childSafe','customPalettes'], ({theme,childSafe,customPalettes}) => {
     if (customPalettes) Object.assign(themePalettes, customPalettes);
     const contentEl = document.getElementById('kind-reader-content');
     if (theme) {
@@ -217,10 +222,9 @@ function createSidepane() {
       contentEl.classList.add('kr-child-safe');
       if (krChildSafeSelect) krChildSafeSelect.checked = childSafe;
     }
-    // set rewrite style when pane loads
-    const styleKey = style || 'original';
-    currentStyle = styleKey;
-    if (krStyleInput) krStyleInput.value = styleKey.charAt(0).toUpperCase() + styleKey.slice(1);
+    // default rewrite style always 'Original' on open
+    currentStyle = 'original';
+    if (krStyleInput) krStyleInput.value = 'Original';
   });
 
   // Replace kr-blur text with asterisks on copy
