@@ -80,8 +80,9 @@ IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. 
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
         body: JSON.stringify({
           model: 'gpt-4.1-mini',
+          temperature: 0.2,
           messages: [
-            { role: 'system', content: 'Wrap any profane or offensive words in the following HTML snippet with <span class="kr-blur"> and </span>, preserving all other content and tags exactly.' },
+            { role: 'system', content: 'You are a content filter. Given an HTML snippet, wrap any profane or offensive words by enclosing each in <span class="kr-blur">…</span>. Preserve all other HTML tags and structure. Respond with only the resulting HTML, without any markdown fences or explanation.' },
             { role: 'user', content: snippet }
           ]
         })
@@ -91,7 +92,9 @@ IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. 
         if (data.error) {
           sendResponse({ error: data.error.message || JSON.stringify(data.error) });
         } else {
-          const html = data.choices?.[0]?.message?.content || snippet;
+          let html = data.choices?.[0]?.message?.content || snippet;
+          // strip markdown fences if any
+          html = html.replace(/```(?:html)?/g, '').replace(/```/g, '').trim();
           sendResponse({ html });
         }
       })

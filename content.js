@@ -213,7 +213,10 @@ function createSidepane() {
       pane.className = 'theme-' + theme;
       krThemeInput.value = theme.charAt(0).toUpperCase() + theme.slice(1);
     }
-    if (childSafe) contentEl.classList.add('kr-child-safe');
+    if (childSafe) {
+      contentEl.classList.add('kr-child-safe');
+      if (krChildSafeSelect) krChildSafeSelect.checked = childSafe;
+    }
     // set rewrite style when pane loads
     const styleKey = style || 'original';
     currentStyle = styleKey;
@@ -291,6 +294,12 @@ function createSidepane() {
         const contentElTransAfter = document.getElementById('kind-reader-content');
         const spinnerTransAfter = contentElTransAfter.querySelector('.kr-spinner');
         if (spinnerTransAfter) spinnerTransAfter.remove();
+        // apply child safe profanity filtering
+        if (contentElTransAfter.classList.contains('kr-child-safe')) {
+          chrome.runtime.sendMessage({ type: 'checkProfanity', html: contentElTransAfter.innerHTML }, resp => {
+            if (!resp.error) contentElTransAfter.innerHTML = resp.html;
+          });
+        }
         port.disconnect();
       }
     });
@@ -374,6 +383,13 @@ function processQueue() {
       const spinnerSync = contentElSync.querySelector('.kr-spinner');
       if (spinnerSync) contentElSync.insertBefore(frag, spinnerSync);
       else contentElSync.appendChild(frag);
+    }
+    // apply child safe profanity filtering for original style
+    const contentElSync = document.getElementById('kind-reader-content');
+    if (contentElSync.classList.contains('kr-child-safe')) {
+      chrome.runtime.sendMessage({ type: 'checkProfanity', html: contentElSync.innerHTML }, resp => {
+        if (!resp.error) contentElSync.innerHTML = resp.html;
+      });
     }
     processing = false;
     return;
