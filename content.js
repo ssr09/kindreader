@@ -38,6 +38,7 @@ let paneOpen = false;
 // global control vars
 let currentStyle = 'original';
 let runId = 0;
+let krAudioPlayer = null;
 // theme palettes mapping for accessible contrast
 const themePalettes = {
   day:    { bg:'#ffffff', fg:'#181a1b', link:'#1a0dab' },
@@ -69,6 +70,7 @@ function createSidepane() {
             <path d="M18.3 5.71l-1.41-1.41L12 9.18 7.11 4.29 5.7 5.7 10.59 10.59 5.7 15.49l1.41 1.41L12 12l4.89 4.9 1.41-1.41L13.41 10.6z"/>
           </svg>
         </button>
+        <button id="kr-read-btn" aria-label="Read Aloud" title="Read Aloud">🔊</button>
       </div>
     </div>
     <div id="kind-reader-content" class="theme-day" aria-live="polite" tabindex="0">
@@ -140,6 +142,7 @@ function createSidepane() {
   });
   // setup overlay interactions and persistence
   const settingsBtn = document.getElementById('kind-reader-settings');
+  const readBtn = document.getElementById('kr-read-btn');
   const overlay = document.getElementById('kr-overlay');
   const krThemeInput = document.getElementById('kr-theme-input');
   const krStyleInput = document.getElementById('kr-style-input');
@@ -310,6 +313,36 @@ function createSidepane() {
     // initiate streaming extraction
     port.postMessage({ type: 'extractStream', content: raw });
   }
+  // Play/Pause Read Aloud handler
+  readBtn.addEventListener('click', () => {
+    const contentEl = document.getElementById('kind-reader-content');
+    const text = contentEl.innerText;
+    if (krAudioPlayer) {
+      if (!krAudioPlayer.paused) {
+        krAudioPlayer.pause();
+        readBtn.textContent = '🔊';
+      } else {
+        krAudioPlayer.play();
+        readBtn.textContent = '⏸️';
+      }
+      return;
+    }
+    readBtn.disabled = true;
+    chrome.runtime.sendMessage({ type: 'createSpeech', text }, resp => {
+      readBtn.disabled = false;
+      if (resp.error) {
+        console.error('TTS error', resp.error);
+      } else {
+        krAudioPlayer = new Audio('data:audio/mpeg;base64,' + resp.audio);
+        readBtn.textContent = '⏸️';
+        krAudioPlayer.onended = () => {
+          readBtn.textContent = '🔊';
+          krAudioPlayer = null;
+        };
+        krAudioPlayer.play();
+      }
+    });
+  });
 }
 
 function removeSidepane() {

@@ -165,6 +165,40 @@ IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. 
     });
     return true;
   }
+  // Text-to-Speech via OpenAI Audio API: send blob or JSON response
+  if (msg.type === 'createSpeech') {
+    const text = msg.text || '';
+    chrome.storage.sync.get('apiKey', ({ apiKey }) => {
+      if (!apiKey) { sendResponse({ error: 'API key not set' }); return; }
+      fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: 'sage', input: text })
+      })
+      .then(res => {
+        if (!res.ok) return res.text().then(txt => sendResponse({ error: `TTS HTTP ${res.status}: ${txt}` }));
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          return res.json().then(data => {
+            if (data.error) sendResponse({ error: data.error.message || JSON.stringify(data.error) });
+            else sendResponse({ audio: data.audio });
+          });
+        }
+        // handle audio blob
+        return res.blob().then(blob => new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result.split(',')[1];
+            sendResponse({ audio: base64 });
+            resolve();
+          };
+          reader.readAsDataURL(blob);
+        }));
+      })
+      .catch(err => sendResponse({ error: err.toString() }));
+    });
+    return true;
+  }
   return true; // keep channel open for sendResponse
 });
 
