@@ -79,7 +79,7 @@ function createSidepane() {
         <h3>Settings</h3>
         <div class="kr-settings-form">
           <label for="kr-theme-input">Theme:</label>
-          <input type="text" id="kr-theme-input" placeholder="e.g. Day, Night, Solaris, Sunset, Miami">
+          <input type="text" id="kr-theme-input" value="Day" placeholder="e.g. Day, Night, Solaris, Sunset, Miami">
           <div class="kr-theme-suggestions">
             <button type="button" class="kr-theme-suggest">Day</button>
             <button type="button" class="kr-theme-suggest">Night</button>
@@ -89,17 +89,20 @@ function createSidepane() {
           </div>
 
           <label for="kr-style-input">Rewrite Style:</label>
-          <input type="text" id="kr-style-input" placeholder="e.g. Hindi, Pirate Talk, Elementary English">
+          <input type="text" id="kr-style-input" value="Original" placeholder="e.g. Spanish, Hinglish, Pirate, Elementary English">
           <div class="kr-suggestions">
             <button type="button" class="kr-suggest">Original</button>
-            <button type="button" class="kr-suggest">Hindi</button>
-            <button type="button" class="kr-suggest">French</button>
-            <button type="button" class="kr-suggest">Pirate Talk</button>
+            <button type="button" class="kr-suggest">Spanish</button>
+            <button type="button" class="kr-suggest">Hinglish</button>
+            <button type="button" class="kr-suggest">Pirate</button>
             <button type="button" class="kr-suggest">Elementary English</button>
           </div>
 
-          <label for="kr-child-safe-select">Child Safe Mode:</label>
-          <input type="checkbox" id="kr-child-safe-select">
+          <label class="kr-toggle">
+            Child Safe Mode
+            <input type="checkbox" id="kr-child-safe-select">
+            <span class="kr-slider"></span>
+          </label>
         </div>
         <div class="kr-overlay-buttons">
           <button id="kr-apply-btn">Apply</button>
@@ -143,7 +146,13 @@ function createSidepane() {
   const krChildSafeSelect = document.getElementById('kr-child-safe-select');
   const applyBtn = document.getElementById('kr-apply-btn');
   const cancelBtn = document.getElementById('kr-cancel-btn');
-  settingsBtn.addEventListener('click', e => { e.preventDefault(); overlay.classList.remove('kr-hidden'); });
+  settingsBtn.addEventListener('click', e => {
+    e.preventDefault();
+    // Prefill default values on open
+    krThemeInput.value = 'Day';
+    krStyleInput.value = 'Original';
+    overlay.classList.remove('kr-hidden');
+  });
   cancelBtn.addEventListener('click', () => overlay.classList.add('kr-hidden'));
   // suggestions autofill
   const suggestionBtns = overlay.querySelectorAll('.kr-suggest');
@@ -284,8 +293,9 @@ function createSidepane() {
           processQueue();
         }
         // remove spinner after all fragments load
-        const spinnerDone = target.querySelector('.kr-spinner');
-        if (spinnerDone) spinnerDone.remove();
+        const contentElTransAfter = document.getElementById('kind-reader-content');
+        const spinnerTransAfter = contentElTransAfter.querySelector('.kr-spinner');
+        if (spinnerTransAfter) spinnerTransAfter.remove();
         port.disconnect();
       }
     });
