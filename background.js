@@ -170,28 +170,33 @@ IMPORTANT: Do NOT wrap your output in Markdown code fences or triple backticks. 
     const text = msg.text || '';
     chrome.storage.sync.get('apiKey', ({ apiKey }) => {
       if (!apiKey) { sendResponse({ error: 'API key not set' }); return; }
-      fetch('https://api.openai.com/v1/audio/speech', {
+      // Generate detailed instructions from readingStyle via LLM
+      const vibe = msg.readingStyle || 'Calm';
+      const sys = `You are a prompt converter. Given a single word or short phrase describing voice "vibe", output a structured, detailed description across categories: Voice Affect, Tone, Pacing, Emotion, Pronunciation, Pauses, Special Features. Use few-shot examples for Calm, Dramatic, Pirate, Bedtime Story. Instruction: Given Vibe: ${vibe}`;
+      fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: 'sage', input: text })
+        body: JSON.stringify({ model: 'gpt-4.1-mini', messages: [ { role: 'system', content: sys } ], temperature: 0.7 })
+      })
+      .then(r => r.json()).then(data => {
+        let instr = data.choices?.[0]?.message?.content || '';
+        instr = instr.replace(/```/g, '').trim();
+        // Call TTS with generated instructions
+        return fetch('https://api.openai.com/v1/audio/speech', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+          body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: 'sage', input: text, instructions: instr })
+        });
       })
       .then(res => {
         if (!res.ok) return res.text().then(txt => sendResponse({ error: `TTS HTTP ${res.status}: ${txt}` }));
         const ct = res.headers.get('content-type') || '';
         if (ct.includes('application/json')) {
-          return res.json().then(data => {
-            if (data.error) sendResponse({ error: data.error.message || JSON.stringify(data.error) });
-            else sendResponse({ audio: data.audio });
-          });
+          return res.json().then(d => d.error ? sendResponse({ error: d.error.message }) : sendResponse({ audio: d.audio }));
         }
-        // handle audio blob
         return res.blob().then(blob => new Promise(resolve => {
           const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64 = reader.result.split(',')[1];
-            sendResponse({ audio: base64 });
-            resolve();
-          };
+          reader.onloadend = () => { sendResponse({ audio: reader.result.split(',')[1] }); resolve(); };
           reader.readAsDataURL(blob);
         }));
       })

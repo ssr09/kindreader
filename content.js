@@ -39,6 +39,12 @@ let paneOpen = false;
 let currentStyle = 'original';
 let runId = 0;
 let krAudioPlayer = null;
+let krAudioChunks = null;
+let krAudioData = null;
+let krSpeechIndex = 0;
+let krPrefetchCount = 5;
+let krReadingStyle = 'Calm';
+let krStreamPort = null;
 // theme palettes mapping for accessible contrast
 const themePalettes = {
   day:    { bg:'#ffffff', fg:'#181a1b', link:'#1a0dab' },
@@ -50,6 +56,12 @@ const themePalettes = {
 };
 
 function createSidepane() {
+  // clear previous state and start fresh
+  if (krStreamPort) { krStreamPort.disconnect(); krStreamPort = null; }
+  originalQueue.length = 0;
+  leftover = '';
+  processedCount = 0;
+  processing = false;
   const pane = document.createElement('div');
   pane.id = 'kind-reader-sidepane';
   pane.setAttribute('role', 'region');
@@ -100,6 +112,15 @@ function createSidepane() {
             <button type="button" class="kr-suggest">Elementary English</button>
           </div>
 
+          <label for="kr-reading-style-input">Reading Style:</label>
+          <input type="text" id="kr-reading-style-input" value="Calm" placeholder="e.g. Calm, Dramatic, Bedtime Story, Santa">
+          <div class="kr-reading-suggestions">
+            <button type="button" class="kr-reading-suggest">Calm</button>
+            <button type="button" class="kr-reading-suggest">Dramatic</button>
+            <button type="button" class="kr-reading-suggest">Bedtime Story</button>
+            <button type="button" class="kr-reading-suggest">Santa</button>
+          </div>
+
           <label class="kr-toggle">
             Child Safe Mode
             <input type="checkbox" id="kr-child-safe-select">
@@ -146,6 +167,7 @@ function createSidepane() {
   const overlay = document.getElementById('kr-overlay');
   const krThemeInput = document.getElementById('kr-theme-input');
   const krStyleInput = document.getElementById('kr-style-input');
+  const krReadingStyleInput = document.getElementById('kr-reading-style-input');
   const krChildSafeSelect = document.getElementById('kr-child-safe-select');
   const applyBtn = document.getElementById('kr-apply-btn');
   const cancelBtn = document.getElementById('kr-cancel-btn');
@@ -159,6 +181,9 @@ function createSidepane() {
   // suggestions autofill
   const suggestionBtns = overlay.querySelectorAll('.kr-suggest');
   suggestionBtns.forEach(btn => btn.addEventListener('click', () => { krStyleInput.value = btn.textContent; }));
+  // reading style suggestions autofill
+  const readingSuggestionBtns = overlay.querySelectorAll('.kr-reading-suggest');
+  readingSuggestionBtns.forEach(btn => btn.addEventListener('click', () => { krReadingStyleInput.value = btn.textContent; }));
   // theme suggestions autofill
   const themeSuggestionBtns = overlay.querySelectorAll('.kr-theme-suggest');
   themeSuggestionBtns.forEach(btn => btn.addEventListener('click', () => { krThemeInput.value = btn.textContent; }));
@@ -168,9 +193,18 @@ function createSidepane() {
     const newChild = krChildSafeSelect.checked;
     const styleVal = krStyleInput.value.trim();
     const newStyle = styleVal ? styleVal.toLowerCase() : 'original';
+    const readingVal = krReadingStyleInput.value.trim() || 'Calm';
+    krReadingStyle = readingVal;
     currentStyle = newStyle;
     runId++;
-    processedCount = 0;
+    // reset parsing state and set pointer for chosen style
+    leftover = '';
+    if (currentStyle === 'original') {
+      processedCount = processedCountOri;
+    } else {
+      processedCountTrans = 0;
+      processedCount = 0;
+    }
     processing = false;
     const applyThemeAndContinue = pal => {
       document.documentElement.style.setProperty('--kr-bg', pal.bg);
@@ -185,7 +219,21 @@ function createSidepane() {
       contentEl.appendChild(spinnerEl);
       contentEl.classList.toggle('kr-child-safe', newChild);
       overlay.classList.add('kr-hidden');
-      processQueue();
+      if (currentStyle === 'original') {
+        processQueue();
+      } else {
+        const raw = getMainContent();
+        chrome.runtime.sendMessage({ type: 'transformText', html: raw, style: currentStyle }, resp => {
+          if (!resp.error) contentEl.innerHTML = resp.html;
+          const sp2 = contentEl.querySelector('.kr-spinner');
+          if (sp2) sp2.remove();
+          if (contentEl.classList.contains('kr-child-safe')) {
+            chrome.runtime.sendMessage({ type: 'checkProfanity', html: contentEl.innerHTML }, r => {
+              if (!r.error) contentEl.innerHTML = r.html;
+            });
+          }
+        });
+      }
     };
     if (!themePalettes[themeKey]) {
       applyBtn.disabled = true;
@@ -254,6 +302,7 @@ function createSidepane() {
     target.innerText = 'No main content detected on this page.';
   } else {
     const port = chrome.runtime.connect({ name: 'stream' });
+    krStreamPort = port;
     // buffer incomplete HTML between chunks
     port.onMessage.addListener(msg => {
       if (msg.error) {
@@ -263,7 +312,6 @@ function createSidepane() {
         // decode HTML entities
         const ta = document.createElement('textarea');
         ta.innerHTML = msg.chunk;
-        // strip newline characters and accumulate
         const decoded = ta.value.replace(/\r?\n/g, '');
         const html = leftover + decoded;
         // find last complete block-level close tag
@@ -281,7 +329,8 @@ function createSidepane() {
           leftover = html;
         }
         if (safe) {
-          // spinner stays until all fragments are loaded
+          const contentEl = document.getElementById('kind-reader-content');
+          // enqueue all blocks
           let start = 0;
           closeTagRegex.lastIndex = 0;
           while ((match = closeTagRegex.exec(safe)) !== null) {
@@ -289,63 +338,103 @@ function createSidepane() {
             start = match.index + match[0].length;
             originalQueue.push(block);
           }
+          // trigger processing pipeline for both original and translation
           processQueue();
         }
       } else if (msg.done) {
         if (leftover) {
           originalQueue.push(leftover);
           leftover = '';
-          processQueue();
         }
-        // remove spinner after all fragments load
-        const contentElTransAfter = document.getElementById('kind-reader-content');
-        const spinnerTransAfter = contentElTransAfter.querySelector('.kr-spinner');
-        if (spinnerTransAfter) spinnerTransAfter.remove();
-        // apply child safe profanity filtering
-        if (contentElTransAfter.classList.contains('kr-child-safe')) {
-          chrome.runtime.sendMessage({ type: 'checkProfanity', html: contentElTransAfter.innerHTML }, resp => {
-            if (!resp.error) contentElTransAfter.innerHTML = resp.html;
-          });
-        }
+        // process any queued blocks now that stream ended
+        processQueue();
         port.disconnect();
       }
     });
     // initiate streaming extraction
     port.postMessage({ type: 'extractStream', content: raw });
   }
-  // Play/Pause Read Aloud handler
+  // Streamed Read Aloud: prefetch up to 5 chunks with seamless playback
   readBtn.addEventListener('click', () => {
     const contentEl = document.getElementById('kind-reader-content');
-    const text = contentEl.innerText;
+    // derive full text: use full page content for original style
+    let text;
+    if (currentStyle === 'original') {
+      const rawHTML = getMainContent();
+      const tmp = document.createElement('div');
+      tmp.innerHTML = rawHTML;
+      text = tmp.innerText;
+    } else {
+      text = contentEl.innerText;
+    }
+    // toggle pause/play
     if (krAudioPlayer) {
-      if (!krAudioPlayer.paused) {
-        krAudioPlayer.pause();
-        readBtn.textContent = '🔊';
-      } else {
-        krAudioPlayer.play();
-        readBtn.textContent = '⏸️';
-      }
+      if (!krAudioPlayer.paused) { krAudioPlayer.pause(); readBtn.textContent = '🔊'; }
+      else { krAudioPlayer.play(); readBtn.textContent = '⏸️'; }
       return;
     }
-    readBtn.disabled = true;
-    chrome.runtime.sendMessage({ type: 'createSpeech', text }, resp => {
-      readBtn.disabled = false;
-      if (resp.error) {
-        console.error('TTS error', resp.error);
-      } else {
-        krAudioPlayer = new Audio('data:audio/mpeg;base64,' + resp.audio);
-        readBtn.textContent = '⏸️';
-        krAudioPlayer.onended = () => {
-          readBtn.textContent = '🔊';
-          krAudioPlayer = null;
-        };
-        krAudioPlayer.play();
+    // initialize chunks and data
+    if (!krAudioChunks) {
+      krAudioChunks = text.split(/\n{2,}/).filter(Boolean);
+      krAudioData = new Array(krAudioChunks.length).fill(null);
+      krSpeechIndex = 0;
+    }
+    // prefetch next N chunks
+    function prefetchChunks(startIdx) {
+      for (let i = startIdx; i < Math.min(startIdx + krPrefetchCount, krAudioChunks.length); i++) {
+        if (!krAudioData[i]) {
+          chrome.runtime.sendMessage({ type: 'createSpeech', text: krAudioChunks[i], readingStyle: krReadingStyle }, resp => {
+            if (!resp.error) krAudioData[i] = resp.audio;
+          });
+        }
       }
-    });
+    }
+    // play a specific chunk
+    function playChunk(idx) {
+      readBtn.disabled = true;
+      const cached = krAudioData[idx];
+      if (cached) {
+        startAudio(cached, idx);
+      } else {
+        chrome.runtime.sendMessage({ type: 'createSpeech', text: krAudioChunks[idx], readingStyle: krReadingStyle }, resp => {
+          readBtn.disabled = false;
+          if (resp.error) { console.error('TTS error', resp.error); return; }
+          krAudioData[idx] = resp.audio;
+          startAudio(resp.audio, idx);
+        });
+      }
+    }
+    // helper to start playing audio
+    function startAudio(base64, idx) {
+      readBtn.disabled = false;
+      krAudioPlayer = new Audio('data:audio/mpeg;base64,' + base64);
+      readBtn.textContent = '⏸️';
+      prefetchChunks(idx + 1);
+      krAudioPlayer.onended = () => {
+        krAudioPlayer = null;
+        krSpeechIndex++;
+        if (krSpeechIndex < krAudioChunks.length) playChunk(krSpeechIndex);
+        else {
+          readBtn.textContent = '🔊';
+          krAudioChunks = null;
+          krAudioData = null;
+        }
+      };
+      krAudioPlayer.play();
+    }
+    // start prefetch and playback
+    prefetchChunks(0);
+    playChunk(0);
   });
 }
 
 function removeSidepane() {
+  // cleanup stream and state on close
+  if (krStreamPort) { krStreamPort.disconnect(); krStreamPort = null; }
+  originalQueue.length = 0;
+  leftover = '';
+  processedCount = 0;
+  processing = false;
   const pane = document.getElementById('kind-reader-sidepane');
   if (pane) pane.remove();
 }
@@ -384,8 +473,12 @@ if (!document.getElementById('kr-spinner-style')) {
 
 // translation queue and pipeline
 const originalQueue = [];
-let processedCount = 0, processing = false;
+let processedCount = 0;
+let processedCountOri = 0;
+let processedCountTrans = 0;
+let processing = false;
 let leftover = '';
+
 function processQueue() {
   const thisRun = runId;
   if (processing || processedCount >= originalQueue.length) return;
@@ -421,74 +514,62 @@ function processQueue() {
       if (spinnerSync) contentElSync.insertBefore(frag, spinnerSync);
       else contentElSync.appendChild(frag);
     }
-    // apply child safe profanity filtering for original style
-    const contentElSync = document.getElementById('kind-reader-content');
-    if (contentElSync.classList.contains('kr-child-safe')) {
-      chrome.runtime.sendMessage({ type: 'checkProfanity', html: contentElSync.innerHTML }, resp => {
-        if (!resp.error) contentElSync.innerHTML = resp.html;
-      });
-    }
+    // after original flush: save progress
+    processedCountOri = processedCount;
     processing = false;
     return;
   } else {
     const block = originalQueue[processedCount++];
     console.log('[KindReader] Translating block:', block);
-    chrome.runtime.sendMessage(
-      { type: 'transformText', html: block, style: currentStyle },
-      resp => {
-        console.log('[KindReader] transformText resp:', resp);
-        if (thisRun !== runId) { processing = false; return; }
-        if (!resp.error) {
-          const frag = document.createRange()
-            .createContextualFragment(resp.html);
-          // strip whitespace-only text nodes
-          const walker = document.createTreeWalker(
-            frag, NodeFilter.SHOW_TEXT,
-            { acceptNode(node) {
-                return !/\S/.test(node.nodeValue)
-                  ? NodeFilter.FILTER_ACCEPT
-                  : NodeFilter.FILTER_REJECT;
-            } }
-          );
-          const toRemove = [];
-          let n;
-          while (n = walker.nextNode()) toRemove.push(n);
-          toRemove.forEach(x => x.parentNode.removeChild(x));
-          // resolve image URLs
-          frag.querySelectorAll('img').forEach(img => {
-            const src = img.getAttribute('src');
-            if (src && !/^https?:\/\//.test(src) && !src.startsWith('data:')) {
-              img.src = new URL(src, document.baseURI).href;
-            }
-          });
-          // apply inline link styles to override host CSS
-          const linkColor = getComputedStyle(document.documentElement).getPropertyValue('--kr-link').trim();
-          const fgColor = getComputedStyle(document.documentElement).getPropertyValue('--kr-fg').trim();
-          frag.querySelectorAll('a').forEach(a => {
-            a.style.setProperty('color', linkColor, 'important');
-            a.style.setProperty('textDecoration', 'underline', 'important');
-            a.addEventListener('mouseover', () => a.style.setProperty('color', fgColor, 'important'));
-            a.addEventListener('mouseout', () => a.style.setProperty('color', linkColor, 'important'));
-            a.addEventListener('focus', () => a.style.setProperty('outline', '2px dashed ' + linkColor, 'important'));
-          });
-          // apply inline heading styling in translation branch
-          frag.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(h => {
-            h.style.setProperty('color', fgColor, 'important');
-          });
-          const contentElTrans = document.getElementById('kind-reader-content');
-          const spinnerTrans = contentElTrans.querySelector('.kr-spinner');
-          if (spinnerTrans) contentElTrans.insertBefore(frag, spinnerTrans);
-          else contentElTrans.appendChild(frag);
-          // remove loader spinner after last fragment
-          if (processedCount >= originalQueue.length) {
-            const contentElTransAfter = document.getElementById('kind-reader-content');
-            const spinnerTransAfter = contentElTransAfter.querySelector('.kr-spinner');
-            if (spinnerTransAfter) spinnerTransAfter.remove();
+    chrome.runtime.sendMessage({ type: 'transformText', html: block, style: currentStyle }, resp => {
+      console.log('[KindReader] transformText resp:', resp);
+      if (thisRun !== runId) { processing = false; return; }
+      if (!resp.error) {
+        const frag = document.createRange()
+          .createContextualFragment(resp.html);
+        // strip whitespace-only text nodes
+        const walker = document.createTreeWalker(
+          frag, NodeFilter.SHOW_TEXT,
+          { acceptNode(node) {
+              return !/\S/.test(node.nodeValue)
+                ? NodeFilter.FILTER_ACCEPT
+                : NodeFilter.FILTER_REJECT;
+          } }
+        );
+        const toRemove = [];
+        let n;
+        while (n = walker.nextNode()) toRemove.push(n);
+        toRemove.forEach(x => x.parentNode.removeChild(x));
+        // resolve image URLs
+        frag.querySelectorAll('img').forEach(img => {
+          const src = img.getAttribute('src');
+          if (src && !/^https?:\/\//.test(src) && !src.startsWith('data:')) {
+            img.src = new URL(src, document.baseURI).href;
           }
-        }
-        processing = false;
-        processQueue();
+        });
+        // apply inline link styles to override host CSS
+        const linkColor = getComputedStyle(document.documentElement).getPropertyValue('--kr-link').trim();
+        const fgColor = getComputedStyle(document.documentElement).getPropertyValue('--kr-fg').trim();
+        frag.querySelectorAll('a').forEach(a => {
+          a.style.setProperty('color', linkColor, 'important');
+          a.style.setProperty('textDecoration', 'underline', 'important');
+          a.addEventListener('mouseover', () => a.style.setProperty('color', fgColor, 'important'));
+          a.addEventListener('mouseout', () => a.style.setProperty('color', linkColor, 'important'));
+          a.addEventListener('focus', () => a.style.setProperty('outline', '2px dashed ' + linkColor, 'important'));
+        });
+        // apply inline heading styling in translation branch
+        frag.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(h => {
+          h.style.setProperty('color', fgColor, 'important');
+        });
+        const contentElTrans = document.getElementById('kind-reader-content');
+        const spinnerTrans = contentElTrans.querySelector('.kr-spinner');
+        if (spinnerTrans) contentElTrans.insertBefore(frag, spinnerTrans);
+        else contentElTrans.appendChild(frag);
       }
-    );
+      // save translation progress
+      processedCountTrans = processedCount;
+      processing = false;
+      processQueue();
+    });
   }
 }

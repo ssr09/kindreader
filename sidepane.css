@@ -398,6 +398,17 @@
 #kind-reader-sidepane .kr-suggest:hover {
   filter: brightness(0.9) !important;
 }
+#kind-reader-sidepane .kr-reading-suggest {
+  background-color: var(--kr-link) !important;
+  color: var(--kr-bg) !important;
+  border: none !important;
+  border-radius: 3px !important;
+  padding: 2px 6px !important;
+  margin: 2px !important;
+}
+#kind-reader-sidepane .kr-reading-suggest:hover {
+  filter: brightness(0.9) !important;
+}
 #kind-reader-sidepane #kind-reader-settings:focus,
 #kind-reader-sidepane #kind-reader-settings:active,
 #kind-reader-sidepane #kind-reader-close:focus,
